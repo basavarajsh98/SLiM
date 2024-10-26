@@ -1,0 +1,19 @@
+model_name: openai-community/gpt2
+num_states: 2
+max_sequence_length: 128
+batch_size: 2
+accumulation_steps: 4
+learning_rate: 2e-5
+epochs: 3
+dataset_path: resources/dataset/dataset.pth
+save_model_path: resources/checkpoints/SLiMedGPT2
+device: cuda
+max_steps: 5
+
+top_k: 50
+top_p: 0.93
+temperature: 0.9
+max_length: 100
+state_mapping:
+  joy: [1, 0]
+  sad: [0, 1]
