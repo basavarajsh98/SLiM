@@ -15,4 +15,4 @@ Install the dependencies listed in `requirements.txt`.
     python -m src.train
 3. **Generate text:**
    ```bash
-    python src/inference.py --prompt "I feel" --state "joy"
+    python -m src.inference.py
