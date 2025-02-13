@@ -18,22 +18,22 @@ class StateBlock(nn.Module):
         return self.projection(state_vector)
 
 class SLiMedNet(nn.Module):
-    def __init__(self, model, state_embed_dim, apply_film_at_layers=None):
+    def __init__(self, config, model):
         super(SLiMedNet, self).__init__()
+        state_embed_dim = config.get('num_states')
+        apply_film_at_layers = config.get('apply_film_at_layers')
+
         self.gpt2 = model
 
         self.state_proj = StateBlock(state_embed_dim, self.gpt2.config.n_embd)    
         self.apply_film_at_layers = apply_film_at_layers if apply_film_at_layers else list(range(len(self.gpt2.transformer.h)))
-        self.gate = nn.ModuleList([nn.Linear(state_embed_dim, 1) for _ in range(len(self.apply_film_at_layers))])
         self.film_scale = nn.ModuleList([nn.Linear(self.gpt2.config.n_embd, self.gpt2.config.n_embd) for _ in range(len(self.apply_film_at_layers))])
         self.film_shift = nn.ModuleList([nn.Linear(self.gpt2.config.n_embd, self.gpt2.config.n_embd) for _ in range(len(self.apply_film_at_layers))])
-    
+        self.gate = nn.ModuleList([nn.Linear(state_embed_dim, 1) for _ in range(len(self.apply_film_at_layers))])
+
         self.hooks = self.register_gpt_film_hooks()
 
     def register_gpt_film_hooks(self):
-        """
-        Register hooks for each transformer layer to apply FiLM modulation.
-        """
         hooks = []
         for i, idx in enumerate(self.apply_film_at_layers):
             layer = self.gpt2.transformer.h[idx]
@@ -44,17 +44,12 @@ class SLiMedNet(nn.Module):
         def hook(module, input, output):
             if self.current_state_embed is not None:
                 projected_state = self.state_proj(self.current_state_embed)
-
+                gate_value = torch.sigmoid(self.gate[layer_idx](self.current_state_embed))
                 scale = torch.tanh(self.film_scale[layer_idx](projected_state))
                 shift = torch.tanh(self.film_shift[layer_idx](projected_state))
-
-                gate_value = torch.sigmoid(self.gate[layer_idx](self.current_state_embed))
-
                 steered_output = (output[0] * scale + shift) * gate_value
                 steered_output = F.layer_norm(steered_output, steered_output.shape[-1:])
-
                 steered_output = steered_output + output[0]
-
                 output = (steered_output,) + output[1:]
             return output
         return hook

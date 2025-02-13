@@ -9,16 +9,24 @@ from src.utils import save_model, print_trainable_parameters
 from config.config import get_config
 from transformers import AutoModelForCausalLM
 from src.inference import generate_text
-from peft import get_peft_model, LoraConfig, TaskType, prepare_model_for_kbit_training
+from peft import prepare_model_for_kbit_training
 import warnings
 warnings.filterwarnings("ignore")
 
 config = get_config()
 
-def train_model(model, dataloader, criterion, optimizer, scaler, device):
+def train(model, 
+          dataloader, 
+          criterion, 
+          optimizer, 
+          accumulation_steps=4, 
+          epochs=2, 
+          max_steps=None, 
+          save_model_path="results/SLiM_gpt"):
+          
     model.train()
     step = 0
-    for epoch in range(config['epochs']):
+    for epoch in range(epochs):
         running_loss = 0
         optimizer.zero_grad()
 
@@ -30,14 +38,16 @@ def train_model(model, dataloader, criterion, optimizer, scaler, device):
                 loss = criterion(logits.view(-1, logits.size(-1)), target_seq.view(-1))
             
             scaler.scale(loss).backward()
-            if (i + 1) % config['accumulation_steps'] == 0:
+
+            if (i + 1) % accumulation_steps == 0:
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
+                scheduler.step()  # Step the scheduler after each optimizer step
                 step += 1
                 print(f"Step {step} loss: {(loss.item()):.3f}")
-                if step % 50 == 0 or step == config['max_steps']:
-                    print("\n=============")
+                if step % 1000 == 0 or step == max_steps:
+                    model.eval()
                     print("Baseline: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=None), '\n')
                     print("=============")                    
                     print("Angry German: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([0,1]).unsqueeze(0).to(device)).strip(), '\n')
@@ -52,16 +62,21 @@ def train_model(model, dataloader, criterion, optimizer, scaler, device):
                     print("=============")
                     print("Loving British: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([3,0]).unsqueeze(0).to(device)).strip(), '\n')
                     print("=============\n")
-
+                    model.train()
             running_loss += loss.item()
-            if config['max_steps'] and step >= config['max_steps']:
-                save_model(model, tokenizer, config['max_steps'], config['save_model_path'])
+            if max_steps and step >= max_steps:
+                print(f"Reached max steps: {max_steps}. Stopping training.")
+                step_loss = running_loss / (max_steps)
+                step_ppx = torch.exp(torch.tensor(step_loss)).item()
+                print(f"Step {max_steps} loss: {step_loss:.3f} perplexity: {step_ppx:.3f}")
+                save_model(model, tokenizer, max_steps, step_loss, step_ppx, save_model_path)
                 return
 
         epoch_loss = running_loss / len(dataloader)
         epoh_ppx = torch.exp(torch.Tensor([epoch_loss])).item()
         print(f"Epoch {epoch+1} loss: {epoch_loss:.3f} perplexity: {epoh_ppx:.3f}")
-        save_model(model, tokenizer, epoch, config['save_model_path'])
+        if epoch == epochs-1:
+            save_model(model, tokenizer, epoch, epoch_loss, epoh_ppx, save_model_path) 
 
 if __name__ == "__main__":
 
@@ -77,22 +92,31 @@ if __name__ == "__main__":
     for param in model.parameters():
         param.requires_grad = False
     model = prepare_model_for_kbit_training(model)
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        inference_mode=False, 
-        r=16, 
-        lora_alpha=32, 
-        lora_dropout=0.05,
-        fan_in_fan_out=True
-    )
-    model = get_peft_model(model, peft_config)
 
     print("\nSLiMing model...")
-    model = SLiMedNet(state_embed_dim=config['num_states'], model=model).to(device)
+    model = SLiMedNet(config=config, model=model).to(device)
+
     optimizer = optim.Adam(model.parameters(), lr=float(config['learning_rate']))
     criterion = torch.nn.CrossEntropyLoss()
     scaler = GradScaler()
+    total_steps = len(dataloader) // config["accumulation_steps"] * config["epochs"]
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, 
+        num_warmup_steps=warmup_steps, 
+        num_training_steps=total_steps
+    )
 
     print("\nBegin training...\n")
-    train_model(model, dataloader, criterion, optimizer, scaler, device)
-    print("\nTraining complete!")
+    start = time.time()
+    train(model, 
+          dataloader=dataloader, 
+          criterion=criterion, 
+          optimizer=optimizer, 
+          scaler=scaler,
+          accumulation_steps=config["accumulation_steps"], 
+          epochs=config["epochs"],
+          max_steps=config["max_steps"],
+          save_model_path=config["save_model_path"]
+          )
+    print(f"\nTraining completed in {(time.time() - start)/60} min.")
+    print_trainable_parameters(model)
