@@ -1,0 +1,5 @@
+bitsandbytes==0.44.1
+datasets==3.0.2
+peft==0.13.2
+torch==2.5.0
+transformers==4.46.0
