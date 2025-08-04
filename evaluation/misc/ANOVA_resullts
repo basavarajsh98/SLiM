@@ -1,0 +1,14 @@
+KL Divergence values per state: {'anger': 13.649313440322876, 'fear': 14.5648983669281, 'joy': 12.096556310653687, 'sadness': 14.599105520248413}
+ANOVA F-statistic: 4.584265722880973, p-value: 0.03474706384811321
+There is a statistically significant difference in KL divergence between emotional states.
+Multiple Comparison of Means - Tukey HSD, FWER=0.05 
+====================================================
+group1  group2 meandiff p-adj   lower  upper  reject
+----------------------------------------------------
+ anger    fear   0.9156 0.8643 -2.1332 3.9644  False
+ anger     joy  -1.5528 0.5515 -4.6016 1.4961  False
+ anger sadness   0.9498  0.851  -2.099 3.9986  False
+  fear     joy  -2.4683 0.1574 -5.5172 0.5805  False
+  fear sadness   0.0342    1.0 -3.0146  3.083  False
+   joy sadness   2.5025 0.1482 -0.5463 5.5514  False
+----------------------------------------------------
