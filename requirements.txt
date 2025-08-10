@@ -3,3 +3,6 @@ datasets==3.0.2
 peft==0.13.2
 torch==2.5.0
 transformers==4.46.0
+sentence_transformers=3.2.1
+google-api-python-client
+nltk
