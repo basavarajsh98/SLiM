@@ -31,6 +31,7 @@ def get_distilroberta_classifier():
         "text-classification",
         model="cardiffnlp/twitter-roberta-base-sentiment-latest",
         return_all_scores=False,
+        device=config["device"],
     )
     return classifier
 
@@ -276,7 +277,7 @@ def evaluate_unsteered_generations_with_auc(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_sentiment_wo_500_49.pth"
+    checkpoint = "./resources/checkpoints/sentiment_steering/sentiments.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

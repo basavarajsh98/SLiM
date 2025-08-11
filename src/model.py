@@ -29,11 +29,8 @@ class SLiMedNet(nn.Module):
         record_hidden_states=False,
     ):
         super(SLiMedNet, self).__init__()
-        state_embed_dim = config.get("num_states")
-        apply_SLiM_at_layers = config.get("apply_SLiM_at_layers")
 
         self.gpt2 = model
-
         self.state_proj = StateBlock(state_embed_dim, self.gpt2.config.n_embd)
         self.apply_SLiM_at_layers = (
             apply_SLiM_at_layers

@@ -228,7 +228,7 @@ def plot_toxicity_trend_with_shading(
 
 # Run evaluation and plot
 if __name__ == "__main__":
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_detoxification_24.pth"
+    checkpoint = "./resources/checkpoints/detoxification/detoxification.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, num_states=1)
     device = torch.device(config["device"])
     model = model.to(device)

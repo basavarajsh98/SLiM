@@ -8,12 +8,12 @@ from src.inference import generate_text, get_state_tensor, load_model_and_tokeni
 config = get_config()
 
 CHECKPOINTS = {
-    "emotion": "./SLiM/resources/checkpoints/SLiM_emotions_wo_500_24.pth",
-    "sentiment": "./SLiM/resources/checkpoints/SLiM_sentiment_wo_500_24.pth",
-    "language": "./SLiM/resources/checkpoints/SLiM_langauge_wo_24.pth",
-    "toxicity": "./SLiM/resources/checkpoints/SLiM_detoxification_24.pth",
-    "topic": "./SLiM/resources/checkpoints/SLiM_topic_wo_500_24.pth",
-    "multi_state": "./SLiM/resources/checkpoints/SLiM_multi_state_wo_500_49.pth",
+    "emotion": "./resources/checkpoints/emotions_steering/emotions.pth",
+    "sentiment": "./resources/checkpoints/sentiments_steering/sentiments.pth",
+    "language": "./resources/checkpoints/langauges_steering/languages.pth",
+    "toxicity": "./resources/checkpoints/detoxification/detoxification.pth",
+    "topic": "./resources/checkpoints/topic_steering/topics.pth",
+    "multi_state": "./resources/checkpoints/multi_state_steering/multi_states.pth",
 }
 NUM_STATES = {
     "emotion": 5,

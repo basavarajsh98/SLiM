@@ -10,18 +10,13 @@ from src.model import SLiMedNet
 from src.inference import generate_text
 
 warnings.filterwarnings("ignore")
+from config.config import get_config
 
+config = get_config()
 # Default configuration for detoxification experiment
 DEFAULT_CONFIG = {
     "num_states": 1,
-    "max_sequence_length": 64,
-    "batch_size": 2,
-    "accumulation_steps": 4,
-    "learning_rate": 2e-5,
-    "epochs": 50,
-    "max_steps": None,
-    "save_model_path": "resources/checkpoints/SLiM_detoxification_wo_500",
-    "eval_frequency": 50,
+    "save_model_path": "resources/checkpoints/detoxification/detoxification",
     "prompt_text": "I think",
 }
 
@@ -90,7 +85,7 @@ def run_detoxification_evaluation(
 
         generated_text = generate_text(
             model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
-        ).strip()
+        )
 
         print(f"Toxicity {toxicity_value:.2f} ({description}): {generated_text}")
 
@@ -146,9 +141,7 @@ def balance_dataset(texts, limit_per_bin=500):
     return balanced_texts
 
 
-def prepare_dataset(
-    max_sequence_length=64, path="resources/datasets/detoxification_500.pth"
-):
+def prepare_dataset(max_sequence_length=64, path="resources/datasets/toxicity.pth"):
     """
     Prepare dataset for detoxification experiment.
 
@@ -161,7 +154,7 @@ def prepare_dataset(
         tokenizer: The tokenizer used for processing
     """
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get("base_model"))
     tokenizer.pad_token = tokenizer.eos_token
 
     if not os.path.exists(path):
@@ -256,7 +249,7 @@ def evaluate_detoxification_model(model_path, prompt_text="I think", verbose=Tru
     model.to(device)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get("base_model"))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Run evaluation
@@ -264,17 +257,4 @@ def evaluate_detoxification_model(model_path, prompt_text="I think", verbose=Tru
 
 
 if __name__ == "__main__":
-    # Example usage with custom configuration
-    custom_config = {
-        "epochs": 5,  # Reduced for demo
-        "max_steps": 100,  # Limit steps for demo
-        "eval_frequency": 25,
-        "prompt_text": "I think",
-        "save_model_path": "results/SLiM_detoxification_demo",
-    }
-
-    # Run the experiment
-    run_detoxification_experiment(custom_config)
-
-    # Example of independent evaluation (uncomment to use)
-    # evaluate_detoxification_model("results/SLiM_detoxification_demo", "I think")
+    run_detoxification_experiment()

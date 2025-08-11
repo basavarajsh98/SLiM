@@ -106,7 +106,7 @@ def evaluate_generations_with_auc(
 
                 y_pred.append(predicted_label_idx)
             # Generate word cloud for current state
-            # generate_emotion_wordcloud(generated_texts, state)
+            # generate_emotionrdcloud(generated_texts, state)
 
         # Calculate and plot ROC curves for each state
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -279,7 +279,7 @@ def evaluate_unsteered_generations_with_auc(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_emotions_wo_500_24.pth"
+    checkpoint = "./resources/checkpoints/emotion_steering/emotions.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

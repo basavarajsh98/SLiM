@@ -16,11 +16,11 @@ def run_detoxification_experiment():
     # Custom config for detoxification
     detox_config = {
         "experiment_type": "detoxification",
-        "epochs": 5,  # Reduced for demo
+        "epochs": 1,  # Reduced for demo
         "max_steps": 100,  # Limit steps for demo
         "eval_frequency": 25,
         "prompt_text": "I think",
-        "save_model_path": "results/SLiM_detoxification_demo",
+        "save_model_path": "results/detoxification_demo",
     }
 
     main(experiment_type="detoxification", custom_config=detox_config)
@@ -35,7 +35,7 @@ def run_emotion_steering_experiment():
     # Custom config for emotion steering
     emotion_config = {
         "experiment_type": "emotion_steering",
-        "epochs": 3,  # Reduced for demo
+        "epochs": 1,  # Reduced for demo
         "max_steps": 50,  # Limit steps for demo
         "eval_frequency": 25,
         "prompt_text": "i feel",
@@ -43,6 +43,25 @@ def run_emotion_steering_experiment():
     }
 
     main(experiment_type="emotion_steering", custom_config=emotion_config)
+
+
+def run_sentiment_steering_experiment():
+    """Run sentiment steering experiment with custom configuration."""
+    print("=" * 60)
+    print("RUNNING SENTIMENT STEERING EXPERIMENT")
+    print("=" * 60)
+
+    # Custom config for emotion steering
+    emotion_config = {
+        "experiment_type": "sentiment_steering",
+        "epochs": 1,  # Reduced for demo
+        "max_steps": 50,  # Limit steps for demo
+        "eval_frequency": 25,
+        "prompt_text": "i feel",
+        "save_model_path": "results/SLiM_sentiment_steering_demo",
+    }
+
+    main(experiment_type="sentiment_steering", custom_config=emotion_config)
 
 
 def run_multi_state_steering_experiment():
@@ -54,11 +73,11 @@ def run_multi_state_steering_experiment():
     # Custom config for multi-state steering
     multi_state_config = {
         "experiment_type": "multi_state_steering",
-        "epochs": 5,  # Reduced for demo
+        "epochs": 1,  # Reduced for demo
         "max_steps": 100,  # Limit steps for demo
         "eval_frequency": 25,
         "prompt_text": "I think",
-        "save_model_path": "results/SLiM_multi_state_steering_demo",
+        "save_model_path": "results/multi_states_steering_demo",
     }
 
     main(experiment_type="multi_state_steering", custom_config=multi_state_config)
@@ -73,7 +92,7 @@ def run_language_steering_experiment():
     # Custom config for language steering
     language_config = {
         "experiment_type": "language_steering",
-        "epochs": 5,  # Reduced for demo
+        "epochs": 1,  # Reduced for demo
         "max_steps": 100,  # Limit steps for demo
         "eval_frequency": 25,
         "prompt_text": "I think",
@@ -92,11 +111,11 @@ def run_topic_steering_experiment():
     # Custom config for topic steering
     topic_config = {
         "experiment_type": "topic_steering",
-        "epochs": 5,  # Reduced for demo
+        "epochs": 1,  # Reduced for demo
         "max_steps": 100,  # Limit steps for demo
         "eval_frequency": 25,
         "prompt_text": "I think",
-        "save_model_path": "results/SLiM_topic_steering_demo",
+        "save_model_path": "results/topics_steering_demo",
     }
 
     main(experiment_type="topic_steering", custom_config=topic_config)

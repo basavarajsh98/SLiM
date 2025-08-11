@@ -34,22 +34,6 @@ State-wise Linear Modulation (SLiM) is a novel, efficient, and generalizable app
    pip install -r requirements.txt
    ```
 
-## Directory Structure
-- `src/` - Source code
-  - `app.py` - Gradio web app for interactive demo
-  - `train.py` - Main training script for SLiM
-  - `inference.py` - Inference utilities for SLiM-based text generation
-  - `model.py` - SLiMedNet model with SLiM-based state-wise modulation
-  - `dataset.py` - Dataset and dataloader utilities
-  - `run_experiment.py` - (Optional) Experiment runner
-  - `experiments/` - Task-specific training/evaluation scripts (all SLiM-based)
-  - `evaluation/` - Evaluation and analysis scripts
-  - `visualizations/` - Visualization scripts (SLiM, plots, etc.)
-- `config/` - Configuration files
-  - `config.yaml` - Main config (model, states, mappings, etc.)
-- `requirements.txt` - Python dependencies
-- `README.md` - Project documentation
-
 ## Supported Steering Tasks
 SLiM is designed to support a wide range of steering tasks, including:
 - **Emotion Steering**: anger, fear, joy, love, sadness
@@ -67,8 +51,7 @@ python -m src.train
 ```
 Or for a specific SLiM steering task (e.g., emotion):
 ```python
-from src.experiments.emotion_steering import run_emotion_steering_experiment
-run_emotion_steering_experiment()
+PYTHONPATH=. python ./src/experiments/emotion_steering.py
 ```
 
 ### 2. Inference (CLI)

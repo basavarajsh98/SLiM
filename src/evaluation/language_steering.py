@@ -251,7 +251,7 @@ def evaluate_unsteered_generations_with_auc(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_langauge_wo_24.pth"
+    checkpoint = "./resources/checkpoints/langauges_steering/languages.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

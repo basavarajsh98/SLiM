@@ -12,18 +12,18 @@ config = get_config()
 
 
 def load_model_and_tokenizer(path, num_states):
-    model = AutoModelForCausalLM.from_pretrained(config["model_name"])
+    model = AutoModelForCausalLM.from_pretrained(config["base_model"], torch_dtype=torch.float16)
     model = SLiMedNet(state_embed_dim=num_states, model=model)
     checkpoint = torch.load(path, map_location=torch.device(config["device"]))
     model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
+    tokenizer = AutoTokenizer.from_pretrained(config["base_model"])
     tokenizer.pad_token = tokenizer.eos_token
     return model, tokenizer
 
 
-def generate_text(model, tokenizer, prompt, state_tensor=None, num_generations=100):
+def generate_text(model, tokenizer, prompt, max_length=40, state_tensor=None, num_generations=5):
     model.eval()
     inputs = tokenizer(prompt, return_tensors="pt").to(config["device"])
     input_ids = inputs["input_ids"]
@@ -34,7 +34,7 @@ def generate_text(model, tokenizer, prompt, state_tensor=None, num_generations=1
             state_tensor=state_tensor,
             attention_mask=attention_mask,
             pad_token_id=tokenizer.eos_token_id,
-            max_length=config["max_length"],
+            max_length=max_length,
             max_new_tokens=100,
             num_return_sequences=num_generations,
             no_repeat_ngram_size=2,
@@ -56,7 +56,7 @@ def get_state_tensor(state_mapping, state, device):
 
 # if __name__ == "__main__":
 #     print("Loading checkpoint...\n")
-#     checkpoint = "./SLiM/resources/checkpoints/SLiMedGPT2_5.pth"
+#     checkpoint = "./resources/checkpoints/SLiMedGPT2_5.pth"
 #     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
 #     device = torch.device(config["device"])
 #     model = model.to(device)
@@ -74,7 +74,7 @@ def get_state_tensor(state_mapping, state, device):
 #                 state_tensor=state_tensor,
 #             )
 #             print("=========")
-#             print(generated_text.strip())
+#             print(generated_text)
 #             print("=========")
 #         except Exception as e:
 #             print("Oops!! ", e)

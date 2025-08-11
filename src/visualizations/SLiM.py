@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 config = get_config()
 
 
-checkpoint = "./SLiM/resources/checkpoints/SLiM_topic_22.pth"
+checkpoint = "./resources/checkpoints/topcic_steering/topics.pth"
 model, tokenizer = load_model_and_tokenizer(checkpoint, num_states=10)
 
 samples, tokenizer = prepare_dataset()

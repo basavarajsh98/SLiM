@@ -12,18 +12,13 @@ from src.model import SLiMedNet
 from src.inference import generate_text
 
 warnings.filterwarnings("ignore")
+from config.config import get_config
 
+config = get_config()
 # Default configuration for emotion steering experiment
 DEFAULT_CONFIG = {
     "num_states": 5,
-    "max_sequence_length": 64,
-    "batch_size": 2,
-    "accumulation_steps": 4,
-    "learning_rate": 2e-5,
-    "epochs": 25,
-    "max_steps": None,
-    "save_model_path": "resources/checkpoints/SLiM_emotions_wo_100",
-    "eval_frequency": 50,
+    "save_model_path": "resources/checkpoints/emotion_steering/emotions",
     "prompt_text": "i feel",
 }
 
@@ -41,9 +36,6 @@ def get_emotion_evaluation_samples():
         (torch.FloatTensor([0, 0, 1, 0, 0]), "Joy"),
         (torch.FloatTensor([0, 0, 0, 1, 0]), "Love"),
         (torch.FloatTensor([0, 0, 0, 0, 1]), "Sadness"),
-        (torch.FloatTensor([0.5, 0.5, 0, 0, 0]), "Angry-Fearful"),
-        (torch.FloatTensor([0, 0, 0.5, 0.5, 0]), "Joyful-Loving"),
-        (torch.FloatTensor([0.2, 0.2, 0.2, 0.2, 0.2]), "Balanced Emotions"),
     ]
 
 
@@ -99,7 +91,7 @@ def run_emotion_steering_evaluation(
 
         generated_text = generate_text(
             model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
-        ).strip()
+        )
 
         print(f"State {i + 1} ({description}): {generated_text}")
 
@@ -153,7 +145,7 @@ def balance_dataset(texts, min_count=100):
     return balanced_texts
 
 
-def prepare_dataset(max_sequence_length=64, path="resources/datasets/emotions_100.pth"):
+def prepare_dataset(max_sequence_length=64, path="resources/datasets/emotions.pth"):
     """
     Prepare dataset for emotion steering experiment.
 
@@ -166,7 +158,7 @@ def prepare_dataset(max_sequence_length=64, path="resources/datasets/emotions_10
         tokenizer: The tokenizer used for processing
     """
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     if not os.path.exists(path):
@@ -200,6 +192,7 @@ def prepare_dataset(max_sequence_length=64, path="resources/datasets/emotions_10
 
         # Create final samples
         samples = [(tokens, state) for tokens, (_, state) in zip(encoded_texts, texts)]
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(samples, path)
     else:
         print(f"Found tokenized dataset at {path}!\nImporting...")
@@ -265,7 +258,7 @@ def evaluate_emotion_steering_model(model_path, prompt_text="i feel", verbose=Tr
     model.to(device)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Run evaluation
@@ -273,17 +266,4 @@ def evaluate_emotion_steering_model(model_path, prompt_text="i feel", verbose=Tr
 
 
 if __name__ == "__main__":
-    # Example usage with custom configuration
-    custom_config = {
-        "epochs": 3,  # Reduced for demo
-        "max_steps": 50,  # Limit steps for demo
-        "eval_frequency": 25,
-        "prompt_text": "i feel",
-        "save_model_path": "results/SLiM_emotion_steering_demo",
-    }
-
-    # Run the experiment
-    run_emotion_steering_experiment(custom_config)
-
-    # Example of independent evaluation (uncomment to use)
-    # evaluate_emotion_steering_model("results/SLiM_emotion_steering_demo", "i feel")
+    run_emotion_steering_experiment()

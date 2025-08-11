@@ -6,7 +6,6 @@ import torch
 from transformers import pipeline
 
 from config.config import get_config
-from src.evaluation.emotion import STATE_MAPPING
 from src.inference import generate_text, get_state_tensor, load_model_and_tokenizer
 
 warnings.filterwarnings("ignore")
@@ -156,7 +155,7 @@ def evaluate_unsteered_generations_with_auc(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_multi_state_24.pth"
+    checkpoint = "./resources/checkpoints/multi_state_steering/multi_states.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

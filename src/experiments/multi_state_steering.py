@@ -11,22 +11,15 @@ from src.model import SLiMedNet
 from src.inference import generate_text
 
 warnings.filterwarnings("ignore")
+from config.config import get_config
 
+config = get_config()
 # Default configuration for multi-state steering experiment
 DEFAULT_CONFIG = {
-    "max_sequence_length": 64,
     "num_states": 3,
-    "batch_size": 2,
-    "accumulation_steps": 4,
-    "learning_rate": 2e-5,
-    "epochs": 50,
-    "max_steps": None,
-    "save_model_path": "resources/checkpoints/SLiM_multi_state_wo_500",
-    "dataset_path": "resources/datasets/multi_state_500.pth",
-    "train_csv_path": "resources/datasets/train.csv",
+    "save_model_path": "resources/checkpoints/multi_state_steering/multi_states",
     "max_samples_per_combination": 500,
     "min_samples_per_bin": 10000,
-    "eval_frequency": 50,
     "prompt_text": "This product is",
 }
 
@@ -137,7 +130,7 @@ def run_multi_state_steering_evaluation(
 
         generated_text = generate_text(
             model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
-        ).strip()
+        )
 
         print(f"State {i + 1} ({description}): {generated_text}")
 
@@ -210,9 +203,9 @@ def balance_dataset(texts, min_samples_per_bin=10000):
     return balanced_texts
 
 
-def prepare_dataset(max_sequence_length, path="resources/datasets/multi_state_500.pth"):
+def prepare_dataset(max_sequence_length, path="resources/datasets/multi_states.pth"):
     """Prepare the multi-state steering dataset with topic, language, and rating information."""
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Check if dataset file already exists
@@ -222,7 +215,7 @@ def prepare_dataset(max_sequence_length, path="resources/datasets/multi_state_50
         )
 
         # Load dataset
-        dataset = load_dataset("csv", data_files="resources/datasets/train.csv")
+        dataset = load_dataset("csv", data_files="resources/datasets/amazon_product_review.csv")
         texts = []
 
         # Track counts for each (topic, language, rating) combination
@@ -302,7 +295,7 @@ def run_multi_state_steering_experiment(custom_config=None):
     # Import here to avoid circular imports
     from src.train import main
 
-    main(config)
+    main(experiment_type="multi_state_steering", custom_config=config)
 
 
 def evaluate_multi_state_steering_model(
@@ -324,7 +317,7 @@ def evaluate_multi_state_steering_model(
     model.to(device)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Run evaluation
@@ -332,18 +325,4 @@ def evaluate_multi_state_steering_model(
 
 
 if __name__ == "__main__":
-    # Example custom configuration
-    custom_config = {
-        "epochs": 10,  # Reduced for testing
-        "batch_size": 4,
-        "learning_rate": 1e-5,
-        "eval_frequency": 25,
-        "prompt_text": "This product is",
-        "save_model_path": "results/SLiM_multi_state_steering_demo",
-    }
-
-    # Run the experiment
-    run_multi_state_steering_experiment(custom_config)
-
-    # Example of independent evaluation (uncomment to use)
-    # evaluate_multi_state_steering_model("results/SLiM_multi_state_steering_demo", "This product is")
+    run_multi_state_steering_experiment()

@@ -11,18 +11,13 @@ from src.model import SLiMedNet
 from src.inference import generate_text
 
 warnings.filterwarnings("ignore")
+from config.config import get_config
 
+config = get_config()
 # Default configuration for sentiment steering experiment
 DEFAULT_CONFIG = {
     "num_states": 2,
-    "max_sequence_length": 64,
-    "batch_size": 2,
-    "accumulation_steps": 4,
-    "learning_rate": 2e-5,
-    "epochs": 50,
-    "max_steps": None,
-    "save_model_path": "resources/checkpoints/SLiM_sentiment_wo_500",
-    "eval_frequency": 50,
+    "save_model_path": "resources/checkpoints/sentiment_steering/sentiments",
     "prompt_text": "I think",
 }
 
@@ -94,7 +89,7 @@ def run_sentiment_steering_evaluation(
 
         generated_text = generate_text(
             model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
-        ).strip()
+        )
 
         print(f"State {i + 1} ({description}): {generated_text}")
 
@@ -133,7 +128,7 @@ def balance_dataset(texts, min_count=500):
 
 
 def prepare_dataset(
-    max_sequence_length=64, path="resources/datasets/sentiment_500.pth"
+    max_sequence_length=64, path="resources/datasets/sentiments.pth"
 ):
     """
     Prepare dataset for sentiment steering experiment.
@@ -147,7 +142,7 @@ def prepare_dataset(
         tokenizer: The tokenizer used for processing
     """
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
     label_mapping = {0: [1, 0], 1: [0, 1]}
 
@@ -244,7 +239,7 @@ def evaluate_sentiment_steering_model(model_path, prompt_text="I think", verbose
     model.to(device)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Run evaluation
@@ -252,17 +247,4 @@ def evaluate_sentiment_steering_model(model_path, prompt_text="I think", verbose
 
 
 if __name__ == "__main__":
-    # Example usage with custom configuration
-    custom_config = {
-        "epochs": 5,  # Reduced for demo
-        "max_steps": 100,  # Limit steps for demo
-        "eval_frequency": 25,
-        "prompt_text": "I think",
-        "save_model_path": "results/SLiM_sentiment_steering_demo",
-    }
-
-    # Run the experiment
-    run_sentiment_steering_experiment(custom_config)
-
-    # Example of independent evaluation (uncomment to use)
-    # evaluate_sentiment_steering_model("results/SLiM_sentiment_steering_demo", "I think")
+    run_sentiment_steering_experiment()

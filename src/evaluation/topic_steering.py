@@ -38,8 +38,8 @@ model_rel = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2").to("cu
 def get_average_topic_embedding():
     import os
 
-    if os.path.exists("./SLiM/average.embedding_5k.pth"):
-        return torch.load("./SLiM/average.embedding_5k.pth")
+    if os.path.exists("./average.embedding_5k.pth"):
+        return torch.load("./average.embedding_5k.pth")
     else:
         topics = [
             "gourmet-food",
@@ -220,7 +220,7 @@ def evaluate_generations_with_similarity(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_topic_wo_500_24.pth"
+    checkpoint = "./resources/checkpoints/topics_steering/topics.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

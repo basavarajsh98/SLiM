@@ -12,18 +12,13 @@ from src.model import SLiMedNet
 from src.inference import generate_text
 
 warnings.filterwarnings("ignore")
+from config.config import get_config
 
+config = get_config()
 # Default configuration for topic steering experiment
 DEFAULT_CONFIG = {
     "num_states": 10,
-    "max_sequence_length": 64,
-    "batch_size": 2,
-    "accumulation_steps": 4,
-    "learning_rate": 2e-5,
-    "epochs": 25,
-    "max_steps": None,
-    "save_model_path": "resources/checkpoints/SLiM_topic_wo_500",
-    "eval_frequency": 50,
+    "save_model_path": "resources/checkpoints/topics_steering/topics",
     "prompt_text": "I like",
 }
 
@@ -131,7 +126,7 @@ def run_topic_steering_evaluation(
 
         generated_text = generate_text(
             model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
-        ).strip()
+        )
 
         print(f"State {i + 1} ({description}): {generated_text}")
 
@@ -187,7 +182,7 @@ def one_hot_encode(label, num_labels=10):
     return one_hot_vector
 
 
-def prepare_dataset(max_sequence_length=64, path="resources/datasets/topic_500.pth"):
+def prepare_dataset(max_sequence_length=64, path="resources/datasets/topics.pth"):
     """
     Prepare dataset for topic steering experiment.
 
@@ -200,7 +195,7 @@ def prepare_dataset(max_sequence_length=64, path="resources/datasets/topic_500.p
         tokenizer: The tokenizer used for processing
     """
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get("base_model"))
     tokenizer.pad_token = tokenizer.eos_token
 
     if not os.path.exists(path):
@@ -319,7 +314,7 @@ def evaluate_topic_steering_model(model_path, prompt_text="I like", verbose=True
     model.to(device)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get("base_model"))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Run evaluation
@@ -327,17 +322,4 @@ def evaluate_topic_steering_model(model_path, prompt_text="I like", verbose=True
 
 
 if __name__ == "__main__":
-    # Example usage with custom configuration
-    custom_config = {
-        "epochs": 3,  # Reduced for demo
-        "max_steps": 50,  # Limit steps for demo
-        "eval_frequency": 25,
-        "prompt_text": "I like",
-        "save_model_path": "results/SLiM_topic_steering_demo",
-    }
-
-    # Run the experiment
-    run_topic_steering_experiment(custom_config)
-
-    # Example of independent evaluation (uncomment to use)
-    # evaluate_topic_steering_model("results/SLiM_topic_steering_demo", "I like")
+    run_topic_steering_experiment()

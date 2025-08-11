@@ -1,38 +1,13 @@
-model_name: openai-community/gpt2
-num_states: 5
-max_sequence_length: 128
+base_model: gpt2
+max_sequence_length: 64
 batch_size: 2
 accumulation_steps: 4
 learning_rate: 2e-5
-epochs: 3
-dataset_path:
-save_model_path:
+epochs: 1
 device: cuda
-max_steps: 5
-
-# New dynamic training parameters
+max_steps: 0
 experiment_type: default  # Options: default, detoxification, emotion_steering, sentiment_steering, language_steering, topic_steering, multi_state_steering
-prompt_text: "i feel"  # Text prompt for evaluation generation
 eval_frequency: 50  # How often to run evaluation (in steps)
-
-# Detoxification specific parameters
-detoxification:
-  max_sequence_length: 64
-  num_states: 1
-  epochs: 50
-  batch_size: 2
-  accumulation_steps: 4
-  learning_rate: 2e-5
-  save_model_path: "resources/checkpoints/SLiM_detoxification"
-
-# Emotion steering specific parameters
-emotion_steering:
-  num_states: 2
-  epochs: 10
-  batch_size: 4
-  accumulation_steps: 2
-  learning_rate: 1e-5
-  save_model_path: "resources/checkpoints/SLiM_emotion_steering"
 
 top_k: 50
 top_p: 0.93

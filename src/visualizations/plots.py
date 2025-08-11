@@ -9,7 +9,6 @@ import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
 from config.config import get_config
-from src.evaluation.topic_steering import NUM_STATES
 from src.inference import generate_text, get_state_tensor, load_model_and_tokenizer
 
 warnings.filterwarnings("ignore")
@@ -212,9 +211,9 @@ if __name__ == "__main__":
     #     ]
     states = ["anger", "fear", "joy", "sadness", "love"]
 
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_emotions_wo_16.pth"
+    checkpoint = "./resources/checkpoints/emotion_steering/emotions.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
-    base_model = AutoModelForCausalLM.from_pretrained("gpt2").to("cuda")
+    base_model = AutoModelForCausalLM.from_pretrained(config.get('base_model')).to("cuda")
     device = torch.device(config["device"])
     model = model.to(device)
     # print("Calculating perplexity ratios...")

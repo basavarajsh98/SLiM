@@ -7,12 +7,6 @@ from config.config import get_config
 config = get_config()
 
 
-def one_hot_encode_emotions(emotion, num_classes=config["num_states"]):
-    one_hot_vector = np.zeros(num_classes, dtype=int)
-    one_hot_vector[[2, 4].index(emotion)] = 1
-    return one_hot_vector
-
-
 def collate_fn(batch):
     input_seqs, target_seqs, states = zip(*batch)
     input_seqs = torch.stack(input_seqs)

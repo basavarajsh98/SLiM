@@ -11,18 +11,13 @@ from src.model import SLiMedNet
 from src.inference import generate_text
 
 warnings.filterwarnings("ignore")
+from config.config import get_config
 
+config = get_config()
 # Default configuration for language steering experiment
 DEFAULT_CONFIG = {
     "num_states": 2,
-    "max_sequence_length": 64,
-    "batch_size": 2,
-    "accumulation_steps": 4,
-    "learning_rate": 2e-5,
-    "epochs": 25,
-    "max_steps": None,
-    "save_model_path": "resources/checkpoints/SLiM_language_wo",
-    "eval_frequency": 50,
+    "save_model_path": "resources/checkpoints/language_steering/languages",
     "prompt_text": "I feel",
 }
 
@@ -92,7 +87,7 @@ def run_language_steering_evaluation(
 
         generated_text = generate_text(
             model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
-        ).strip()
+        )
 
         print(f"State {i + 1} ({description}): {generated_text}")
 
@@ -130,7 +125,7 @@ def balance_dataset(texts, min_count=500):
     return balanced_texts
 
 
-def prepare_dataset(max_sequence_length=64, path="resources/datasets/language_500.pth"):
+def prepare_dataset(max_sequence_length=64, path="resources/datasets/languages.pth"):
     """
     Prepare dataset for language steering experiment.
 
@@ -143,7 +138,7 @@ def prepare_dataset(max_sequence_length=64, path="resources/datasets/language_50
         tokenizer: The tokenizer used for processing
     """
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     if not os.path.exists(path):
@@ -250,7 +245,7 @@ def evaluate_language_steering_model(model_path, prompt_text="I feel", verbose=T
     model.to(device)
     model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
     tokenizer.pad_token = tokenizer.eos_token
 
     # Run evaluation
@@ -258,17 +253,4 @@ def evaluate_language_steering_model(model_path, prompt_text="I feel", verbose=T
 
 
 if __name__ == "__main__":
-    # Example usage with custom configuration
-    custom_config = {
-        "epochs": 3,  # Reduced for demo
-        "max_steps": 50,  # Limit steps for demo
-        "eval_frequency": 25,
-        "prompt_text": "I feel",
-        "save_model_path": "results/SLiM_language_steering_demo",
-    }
-
-    # Run the experiment
-    run_language_steering_experiment(custom_config)
-
-    # Example of independent evaluation (uncomment to use)
-    # evaluate_language_steering_model("results/SLiM_language_steering_demo", "I feel")
+    run_language_steering_experiment()

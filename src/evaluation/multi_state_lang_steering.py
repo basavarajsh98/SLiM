@@ -43,8 +43,8 @@ model_rel = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2").to("cu
 def get_average_topic_embedding():
     import os
 
-    if os.path.exists("./SLiM/average.embedding.pth"):
-        return torch.load("./SLiM/average.embedding.pth")
+    if os.path.exists("./average.embedding.pth"):
+        return torch.load("./average.embedding.pth")
     else:
         topics = [
             "gourmet-food",
@@ -301,7 +301,7 @@ def plot_roc_curves(true_labels, predicted_scores, title, plot_type):
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./SLiM/resources/checkpoints/SLiM_multi_state_wo_500_49.pth"
+    checkpoint = "./resources/checkpoints/multi_states_steering/multi_states.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)
