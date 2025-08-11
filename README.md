@@ -15,10 +15,21 @@ State-wise Linear Modulation (SLiM) is a novel, efficient, and generalizable app
 ## Installation
 1. **Clone the repository**
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/basavarajsh98/SLiM
    cd SLiM
    ```
-2. **Install dependencies**
+2. **Create and activate a virtual environment**
+   - On Unix/macOS:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+   - On Windows:
+     ```bash
+     python -m venv venv
+     venv\Scripts\activate
+     ```
+3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
