@@ -24,87 +24,87 @@ class SLiMedNet(nn.Module):
         self,
         model,
         state_embed_dim,
-        apply_film_at_layers=None,
-        record_film=False,
+        apply_SLiM_at_layers=None,
+        record_SLiM=False,
         record_hidden_states=False,
     ):
         super(SLiMedNet, self).__init__()
         state_embed_dim = config.get("num_states")
-        apply_film_at_layers = config.get("apply_film_at_layers")
+        apply_SLiM_at_layers = config.get("apply_SLiM_at_layers")
 
         self.gpt2 = model
 
         self.state_proj = StateBlock(state_embed_dim, self.gpt2.config.n_embd)
-        self.apply_film_at_layers = (
-            apply_film_at_layers
-            if apply_film_at_layers
+        self.apply_SLiM_at_layers = (
+            apply_SLiM_at_layers
+            if apply_SLiM_at_layers
             else list(range(len(self.gpt2.transformer.h)))
         )
         self.gate = nn.ModuleList(
             [
                 nn.Linear(state_embed_dim, 1)
-                for _ in range(len(self.apply_film_at_layers))
+                for _ in range(len(self.apply_SLiM_at_layers))
             ]
         )
-        self.film_scale = nn.ModuleList(
+        self.SLiM_scale = nn.ModuleList(
             [
                 nn.Linear(self.gpt2.config.n_embd, self.gpt2.config.n_embd)
-                for _ in range(len(self.apply_film_at_layers))
+                for _ in range(len(self.apply_SLiM_at_layers))
             ]
         )
-        self.film_shift = nn.ModuleList(
+        self.SLiM_shift = nn.ModuleList(
             [
                 nn.Linear(self.gpt2.config.n_embd, self.gpt2.config.n_embd)
-                for _ in range(len(self.apply_film_at_layers))
+                for _ in range(len(self.apply_SLiM_at_layers))
             ]
         )
 
-        self.hooks = self.register_gpt_film_hooks()
-        self.record_film = record_film
+        self.hooks = self.register_gpt_SLiM_hooks()
+        self.record_SLiM = record_SLiM
         self.record_hidden_states = record_hidden_states
 
-        if self.record_film:
-            self.film_values = {
-                "gamma": [[] for _ in range(len(self.apply_film_at_layers))],
-                "scale": [[] for _ in range(len(self.apply_film_at_layers))],
-                "shift": [[] for _ in range(len(self.apply_film_at_layers))],
+        if self.record_SLiM:
+            self.SLiM_values = {
+                "gamma": [[] for _ in range(len(self.apply_SLiM_at_layers))],
+                "scale": [[] for _ in range(len(self.apply_SLiM_at_layers))],
+                "shift": [[] for _ in range(len(self.apply_SLiM_at_layers))],
             }
 
         if self.record_hidden_states:
             self.hidden_states = {
-                "unmodulated": [[] for _ in range(len(self.apply_film_at_layers))],
-                "modulated": [[] for _ in range(len(self.apply_film_at_layers))],
+                "unmodulated": [[] for _ in range(len(self.apply_SLiM_at_layers))],
+                "modulated": [[] for _ in range(len(self.apply_SLiM_at_layers))],
             }
 
-    def register_gpt_film_hooks(self):
+    def register_gpt_SLiM_hooks(self):
         hooks = []
-        for i, idx in enumerate(self.apply_film_at_layers):
+        for i, idx in enumerate(self.apply_SLiM_at_layers):
             layer = self.gpt2.transformer.h[idx]
-            hooks.append(layer.register_forward_hook(self.create_film_hook(i)))
+            hooks.append(layer.register_forward_hook(self.create_SLiM_hook(i)))
         return hooks
 
-    def create_film_hook(self, layer_idx):
+    def create_SLiM_hook(self, layer_idx):
         def hook(module, input, output):
             if self.current_state_embed is not None:
                 projected_state = self.state_proj(self.current_state_embed)
                 gate_value = torch.sigmoid(
                     self.gate[layer_idx](self.current_state_embed)
                 )
-                scale = torch.tanh(self.film_scale[layer_idx](projected_state))
-                shift = torch.tanh(self.film_shift[layer_idx](projected_state))
+                scale = torch.tanh(self.SLiM_scale[layer_idx](projected_state))
+                shift = torch.tanh(self.SLiM_shift[layer_idx](projected_state))
 
                 gate_value = torch.sigmoid(
                     self.gate[layer_idx](self.current_state_embed)
                 )
 
-                if self.record_film:
-                    self.film_values["gamma"][layer_idx].append(
+                if self.record_SLiM:
+                    self.SLiM_values["gamma"][layer_idx].append(
                         gate_value.detach().cpu().numpy()
                     )
-                    self.film_values["scale"][layer_idx].append(
+                    self.SLiM_values["scale"][layer_idx].append(
                         scale.detach().cpu().numpy()
                     )
-                    self.film_values["shift"][layer_idx].append(
+                    self.SLiM_values["shift"][layer_idx].append(
                         shift.detach().cpu().numpy()
                     )
 
@@ -147,23 +147,23 @@ class SLiMedNet(nn.Module):
             hook.remove()
         self.hooks = []
 
-    def reset_film_values(self):
+    def reset_SLiM_values(self):
         """
-        Clears self.film_values to ensure it starts fresh for each batch of states.
+        Clears self.SLiM_values to ensure it starts fresh for each batch of states.
         """
-        if self.record_film:
-            self.film_values = {
-                "gamma": [[] for _ in range(len(self.apply_film_at_layers))],
-                "scale": [[] for _ in range(len(self.apply_film_at_layers))],
-                "shift": [[] for _ in range(len(self.apply_film_at_layers))],
+        if self.record_SLiM:
+            self.SLiM_values = {
+                "gamma": [[] for _ in range(len(self.apply_SLiM_at_layers))],
+                "scale": [[] for _ in range(len(self.apply_SLiM_at_layers))],
+                "shift": [[] for _ in range(len(self.apply_SLiM_at_layers))],
             }
 
     def reset_record_hidden_states(self):
         """
-        Clears self.film_values to ensure it starts fresh for each batch of states.
+        Clears self.SLiM_values to ensure it starts fresh for each batch of states.
         """
         if self.record_hidden_states:
             self.hidden_states = {
-                "unmodulated": [[] for _ in range(len(self.apply_film_at_layers))],
-                "modulated": [[] for _ in range(len(self.apply_film_at_layers))],
+                "unmodulated": [[] for _ in range(len(self.apply_SLiM_at_layers))],
+                "modulated": [[] for _ in range(len(self.apply_SLiM_at_layers))],
             }
