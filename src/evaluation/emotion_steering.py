@@ -29,6 +29,7 @@ def get_distilroberta_classifier():
         "text-classification",
         model="j-hartmann/emotion-english-distilroberta-base",
         return_all_scores=True,
+        device=config["device"],
     )
     return classifier
 

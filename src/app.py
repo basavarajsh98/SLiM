@@ -8,9 +8,9 @@ from src.inference import generate_text, get_state_tensor, load_model_and_tokeni
 config = get_config()
 
 CHECKPOINTS = {
-    "emotion": "./resources/checkpoints/emotions_steering/emotions.pth",
-    "sentiment": "./resources/checkpoints/sentiments_steering/sentiments.pth",
-    "language": "./resources/checkpoints/langauges_steering/languages.pth",
+    "emotion": "./resources/checkpoints/emotion_steering/emotions.pth",
+    "sentiment": "./resources/checkpoints/sentiment_steering/sentiments.pth",
+    "language": "./resources/checkpoints/language_steering/languages.pth",
     "toxicity": "./resources/checkpoints/detoxification/detoxification.pth",
     "topic": "./resources/checkpoints/topic_steering/topics.pth",
     "multi_state": "./resources/checkpoints/multi_state_steering/multi_states.pth",

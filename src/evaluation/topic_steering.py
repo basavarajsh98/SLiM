@@ -220,7 +220,7 @@ def evaluate_generations_with_similarity(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./resources/checkpoints/topics_steering/topics.pth"
+    checkpoint = "./resources/checkpoints/topic_steering/topics.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

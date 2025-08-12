@@ -30,6 +30,7 @@ def get_distilroberta_classifier():
         "text-classification",
         model="papluca/xlm-roberta-base-language-detection",
         return_all_scores=False,
+        device=config["device"],
     )
     return classifier
 
@@ -251,7 +252,7 @@ def evaluate_unsteered_generations_with_auc(
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./resources/checkpoints/langauges_steering/languages.pth"
+    checkpoint = "./resources/checkpoints/language_steering/languages.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

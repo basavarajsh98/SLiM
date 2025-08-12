@@ -301,7 +301,7 @@ def plot_roc_curves(true_labels, predicted_scores, title, plot_type):
 
 if __name__ == "__main__":
     print("Loading checkpoint...\n")
-    checkpoint = "./resources/checkpoints/multi_states_steering/multi_states.pth"
+    checkpoint = "./resources/checkpoints/multi_state_steering/multi_states.pth"
     model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
     device = torch.device(config["device"])
     model = model.to(device)

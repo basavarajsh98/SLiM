@@ -68,7 +68,7 @@ def generate_and_calculate_perplexity_ratio(
 
     for state in states:
         # Get state tensor if applicable
-        state_tensor = get_state_tensor(state)
+        state_tensor = get_state_tensor("emotion_mapping", state, device=config["device"])
 
         # Generate text with emotion steering vector
         generated_texts_with_state = generate_text(
@@ -203,17 +203,19 @@ def evaluate_kl_divergence(model, tokenizer, prompt, states, num_generations=100
 # Example usage
 if __name__ == "__main__":
     prompt = " I feel"
+
+    checkpoint = "./resources/checkpoints/emotion_steering/emotions.pth"
+    states = ["anger", "fear", "joy", "sadness", "love"]
     # states =[
     #     'gourmet-food', 'video-game',
     #      'clothing', 'beauty',
     #     'arts', 'book', 'jewelry', 'shoe',
     #     'musical-instrument', 'electronics'
     #     ]
-    states = ["anger", "fear", "joy", "sadness", "love"]
-
-    checkpoint = "./resources/checkpoints/emotion_steering/emotions.pth"
-    model, tokenizer = load_model_and_tokenizer(checkpoint, NUM_STATES)
-    base_model = AutoModelForCausalLM.from_pretrained(config.get('base_model')).to("cuda")
+    model, tokenizer = load_model_and_tokenizer(checkpoint, num_states=len(states))
+    base_model = AutoModelForCausalLM.from_pretrained(config.get("base_model")).to(
+        "cuda"
+    )
     device = torch.device(config["device"])
     model = model.to(device)
     # print("Calculating perplexity ratios...")

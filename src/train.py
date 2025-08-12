@@ -4,7 +4,7 @@ import warnings
 import torch
 import torch.amp as amp
 import torch.optim as optim
-from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
+from peft import prepare_model_for_kbit_training
 from torch.utils.data import DataLoader
 from transformers import (
     AutoModelForCausalLM,
@@ -34,7 +34,7 @@ def train_model(
     epochs=3,
     max_steps=None,
     save_model_path=None,
-    experiment_type="default",
+    experiment_type=None,
     tokenizer=None,
     prompt_text="i feel",
     state_samples=None,
@@ -139,7 +139,7 @@ def train_model(
                         final_loss,
                         final_ppx,
                         save_model_path,
-                        final= step == max_steps or epoch== epochs - 1,
+                        final=step == max_steps or epoch == epochs - 1,
                     )
                     return
 
@@ -155,7 +155,15 @@ def train_model(
             )
 
         # Save model at end of epoch
-        save_model(model, tokenizer, epoch, epoch_loss, epoch_ppx, save_model_path, final= step == max_steps or epoch== epochs - 1)
+        save_model(
+            model,
+            tokenizer,
+            epoch,
+            epoch_loss,
+            epoch_ppx,
+            save_model_path,
+            final=step == max_steps or epoch == epochs - 1,
+        )
 
         # Run evaluation at end of epoch if tokenizer provided
         if tokenizer is not None:
@@ -264,76 +272,36 @@ def run_evaluation(
     if state_samples is None:
         # Try to get specialized state samples if available
         if experiment_type == "detoxification":
-            try:
-                from src.experiments.detoxification import (
-                    get_detoxification_state_samples,
-                )
+            from src.experiments.detoxification import (
+                get_detoxification_state_samples,
+            )
 
-                state_samples = get_detoxification_state_samples()
-            except ImportError:
-                # Fall back to default samples
-                state_samples = [0.0, 0.25, 0.5, 0.75, 0.8, 0.9, 1.0]
+            state_samples = get_detoxification_state_samples()
         elif experiment_type == "emotion_steering":
-            try:
-                from src.experiments.emotion_steering import get_emotion_state_samples
+            from src.experiments.emotion_steering import get_emotion_state_samples
 
-                state_samples = get_emotion_state_samples()
-            except ImportError:
-                # Fall back to default emotion samples
-                state_samples = [
-                    torch.FloatTensor([1, 0, 0, 0, 0]),  # Anger
-                    torch.FloatTensor([0, 1, 0, 0, 0]),  # Fear
-                    torch.FloatTensor([0, 0, 1, 0, 0]),  # Joy
-                    torch.FloatTensor([0, 0, 0, 1, 0]),  # Love
-                    torch.FloatTensor([0, 0, 0, 0, 1]),  # Sadness
-                ]
+            state_samples = get_emotion_state_samples()
         elif experiment_type == "language_steering":
-            try:
-                from src.experiments.language_steering import get_language_state_samples
+            from src.experiments.language_steering import get_language_state_samples
 
-                state_samples = get_language_state_samples()
-            except ImportError:
-                # Fall back to default language samples
-                state_samples = [
-                    torch.FloatTensor([1, 0]),  # English
-                    torch.FloatTensor([0, 1]),  # German
-                ]
+            state_samples = get_language_state_samples()
         elif experiment_type == "topic_steering":
-            try:
-                from src.experiments.topic_steering import get_topic_state_samples
+            from src.experiments.topic_steering import get_topic_state_samples
 
-                state_samples = get_topic_state_samples()
-            except ImportError:
-                # Fall back to default topic samples
-                state_samples = [
-                    torch.FloatTensor([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]),  # Gourmet Food
-                    torch.FloatTensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0]),  # Video Games
-                    torch.FloatTensor([0, 0, 1, 0, 0, 0, 0, 0, 0, 0]),  # Clothing
-                    torch.FloatTensor([0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),  # Beauty
-                    torch.FloatTensor([0, 0, 0, 0, 1, 0, 0, 0, 0, 0]),  # Arts
-                ]
+            state_samples = get_topic_state_samples()
         elif experiment_type == "sentiment_steering":
-            try:
-                from src.experiments.sentiment_steering import (
-                    get_sentiment_state_samples,
-                )
+            from src.experiments.sentiment_steering import (
+                get_sentiment_state_samples,
+            )
 
-                state_samples = get_sentiment_state_samples()
-            except ImportError:
-                # Fall back to default sentiment samples
-                state_samples = [
-                    torch.FloatTensor([1, 0]),  # Positive
-                    torch.FloatTensor([0, 1]),  # Negative
-                ]
-        else:
-            # Default multi-state samples
-            state_samples = [
-                torch.FloatTensor([0, 0, 1]).unsqueeze(0),  # book_en_1
-                torch.FloatTensor([0, 0, 5]).unsqueeze(0),  # book_en_5
-                torch.FloatTensor([1, 0, 1]).unsqueeze(0),  # book_de_1
-                torch.FloatTensor([1, 0, 5]).unsqueeze(0),  # book_de_5
-            ]
+            state_samples = get_sentiment_state_samples()
+        elif experiment_type == "multi_state_steering":
+            from src.experiments.multi_state_steering import (
+                get_multi_state_state_samples,
+            )
 
+            state_samples = get_multi_state_state_samples()
+            
     # Generate text for each state
     for i, state in enumerate(state_samples):
         if isinstance(state, (int, float)):
@@ -354,19 +322,19 @@ def run_evaluation(
     print("=" * 50 + "\n")
 
 
-def setup_training_components(config, model, experiment_type="default"):
+def setup_training_components(config, model):
     """Setup training components based on configuration and experiment type."""
     device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
 
     optimizer = optim.Adam(
-            model.parameters(), lr=float(config.get("learning_rate", 2e-5))
-        )
+        model.parameters(), lr=float(config.get("learning_rate", 2e-5))
+    )
 
     # Setup scheduler for detoxification
     scheduler = None
-    total_steps = (
-        config.get("epochs") * config.get("batch_size")
-    ) // config.get("accumulation_steps", 4)
+    total_steps = (config.get("epochs") * config.get("batch_size")) // config.get(
+        "accumulation_steps", 4
+    )
     warmup_steps = int(0.1 * total_steps)
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
@@ -379,116 +347,123 @@ def setup_training_components(config, model, experiment_type="default"):
     return device, optimizer, scheduler, criterion, scaler
 
 
-def main(experiment_type=None, custom_config=None):
+def main(experiment_type="default", custom_config=None):
     """Main training function with experiment type selection."""
     # Use custom config if provided, otherwise use default
-    if custom_config:
-        config.update(custom_config)
-    
-    print(f"Starting {experiment_type} experiment...")
-    print("Preparing dataset...")
 
-    # Prepare dataset based on experiment type
-    if experiment_type == "detoxification":
-        from src.experiments.detoxification import prepare_dataset
+    # List of all experiment types
+    all_experiments = [
+        "detoxification",
+        "emotion_steering",
+        "sentiment_steering",
+        "topic_steering",
+        "language_steering",
+        "multi_state_steering",
+    ]
 
-        samples, tokenizer = prepare_dataset(
-            max_sequence_length=config.get("max_sequence_length", 64)
-        )
-    elif experiment_type == "emotion_steering":
-        from src.experiments.emotion_steering import prepare_dataset
-
-        samples, tokenizer = prepare_dataset(
-            max_sequence_length=config.get("max_sequence_length", 64)
-        )
-    elif experiment_type == "sentiment_steering":
-        from src.experiments.sentiment_steering import prepare_dataset
-
-        samples, tokenizer = prepare_dataset(
-            max_sequence_length=config.get("max_sequence_length", 64)
-        )
-    elif experiment_type == "topic_steering":
-        from src.experiments.topic_steering import prepare_dataset
-
-        samples, tokenizer = prepare_dataset(
-            max_sequence_length=config.get("max_sequence_length", 64)
-        )
-    elif experiment_type == "language_steering":
-        from src.experiments.language_steering import prepare_dataset
-
-        samples, tokenizer = prepare_dataset(
-            max_sequence_length=config.get("max_sequence_length", 64)
-        )
-    elif experiment_type == "multi_state_steering":
-        from src.experiments.multi_state_steering import prepare_dataset
-
-        samples, tokenizer = prepare_dataset(
-            max_sequence_length=config.get("max_sequence_length", 64)
-        )
-    else:
-        raise ValueError(
-            f"Unsupported experiment type: {experiment_type}. Please choose from detoxification, emotion_steering, sentiment_steering, topic_steering, language_steering, or multi_state_steering."
-        )
-
-    dataset = SLiMed_Dataset(samples)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=config.get("batch_size", 2),
-        collate_fn=collate_fn,
-        shuffle=True,
-        num_workers=4,
-        pin_memory=True,
+    # Decide which experiments to run
+    experiments_to_run = (
+        all_experiments if experiment_type == "default" else [experiment_type]
     )
 
-    device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
-    
+    for exp_type in experiments_to_run:
+        print("\n" + "=" * 60)
+        print(f"🚀 Starting Experiment: {exp_type.upper()}")
+        print("=" * 60 + "\n")
+        print("Preparing dataset...")
 
-    print("\nPreparing model...")
+        if exp_type == "detoxification":
+            from src.experiments.detoxification import DEFAULT_CONFIG, prepare_dataset
+        elif exp_type == "emotion_steering":
+            from src.experiments.emotion_steering import DEFAULT_CONFIG, prepare_dataset
+        elif exp_type == "sentiment_steering":
+            from src.experiments.sentiment_steering import (
+                DEFAULT_CONFIG,
+                prepare_dataset,
+            )
+        elif exp_type == "topic_steering":
+            from src.experiments.topic_steering import DEFAULT_CONFIG, prepare_dataset
+        elif exp_type == "language_steering":
+            from src.experiments.language_steering import (
+                DEFAULT_CONFIG,
+                prepare_dataset,
+            )
+        elif exp_type == "multi_state_steering":
+            from src.experiments.multi_state_steering import (
+                DEFAULT_CONFIG,
+                prepare_dataset,
+            )
+        else:
+            print(f"Skipping unsupported experiment type: {exp_type}")
+            continue
 
-    base_model = AutoModelForCausalLM.from_pretrained(
-        config.get("model_name", "openai-community/gpt2")
-    )
-    for param in base_model.parameters():
-        param.requires_grad = False
-    base_model = prepare_model_for_kbit_training(base_model)
-    print(config)
-    model = SLiMedNet(
-        state_embed_dim=config.get("num_states"), model=base_model
-    ).to(device)
+        if custom_config:
+            config.update(custom_config)
+        else:
+            config.update(DEFAULT_CONFIG)
 
-    print_trainable_parameters(model)
+        samples, tokenizer = prepare_dataset(
+            max_sequence_length=config.get("max_sequence_length", 64)
+        )
 
-    # Setup training components
-    device, optimizer, scheduler, criterion, scaler = setup_training_components(
-        config, model, experiment_type
-    )
+        dataset = SLiMed_Dataset(samples)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=config.get("batch_size", 2),
+            collate_fn=collate_fn,
+            shuffle=True,
+            num_workers=4,
+            pin_memory=True,
+        )
 
-    print("\nBegin training...\n")
-    start_time = time.time()
+        device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
 
-    # Run training
-    train_model(
-        model=model,
-        dataloader=dataloader,
-        criterion=criterion,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        scaler=scaler,
-        device=device,
-        accumulation_steps=config.get("accumulation_steps", 4),
-        epochs=config.get("epochs", 3),
-        max_steps=config.get("max_steps"),
-        save_model_path=config.get("save_model_path"),
-        experiment_type=experiment_type,
-        tokenizer=tokenizer,
-        prompt_text=config.get("prompt_text", "i feel"),
-        eval_frequency=config.get("eval_frequency", 50),
-        verbose=True,
-    )
+        print("\nPreparing model...")
 
-    training_time = (time.time() - start_time) / 60
-    print(f"\nTraining completed in {training_time:.2f} minutes!")
-    print_trainable_parameters(model)
+        base_model = AutoModelForCausalLM.from_pretrained(
+            config.get("model_name", "openai-community/gpt2")
+        )
+        for param in base_model.parameters():
+            param.requires_grad = False
+        base_model = prepare_model_for_kbit_training(base_model)
+        print(config)
+        model = SLiMedNet(
+            state_embed_dim=config.get("num_states"), model=base_model
+        ).to(device)
+
+        print_trainable_parameters(model)
+
+        # Setup training components
+        device, optimizer, scheduler, criterion, scaler = setup_training_components(
+            config, model
+        )
+
+        print("\nBegin training...\n")
+        start_time = time.time()
+
+        # Run training
+        train_model(
+            model=model,
+            dataloader=dataloader,
+            criterion=criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
+            device=device,
+            accumulation_steps=config.get("accumulation_steps", 4),
+            epochs=config.get("epochs", 3),
+            max_steps=config.get("max_steps"),
+            save_model_path=config.get("save_model_path"),
+            experiment_type=exp_type,
+            tokenizer=tokenizer,
+            prompt_text=config.get("prompt_text", "i feel"),
+            eval_frequency=config.get("eval_frequency", 50),
+            verbose=True,
+        )
+
+        training_time = (time.time() - start_time) / 60
+        print(f"\nTraining completed in {training_time:.2f} minutes!")
+        print_trainable_parameters(model)
 
 
 if __name__ == "__main__":

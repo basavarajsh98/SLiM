@@ -32,9 +32,6 @@ def get_language_evaluation_samples():
     return [
         (torch.FloatTensor([1, 0]), "English"),
         (torch.FloatTensor([0, 1]), "German"),
-        (torch.FloatTensor([0.5, 0.5]), "Mixed English-German"),
-        (torch.FloatTensor([0.8, 0.2]), "Mostly English"),
-        (torch.FloatTensor([0.2, 0.8]), "Mostly German"),
     ]
 
 

@@ -25,6 +25,7 @@ def get_distilroberta_classifier():
         "text-classification",
         model="cardiffnlp/twitter-roberta-base-sentiment-latest",
         return_all_scores=False,
+        device=config["device"],
     )
     return classifier
 

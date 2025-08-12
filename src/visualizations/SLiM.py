@@ -9,7 +9,7 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader
 
 from config.config import get_config
-from src.dataset import SLiMed_Dataset, collate_fn, prepare_dataset
+from src.dataset import SLiMed_Dataset, collate_fn
 from src.inference import load_model_and_tokenizer
 
 warnings.filterwarnings("ignore")
@@ -17,16 +17,17 @@ warnings.filterwarnings("ignore")
 config = get_config()
 
 
-checkpoint = "./resources/checkpoints/topcic_steering/topics.pth"
-model, tokenizer = load_model_and_tokenizer(checkpoint, num_states=10)
+checkpoint = "./resources/checkpoints/emotion_steering/emotions.pth"
+model, tokenizer = load_model_and_tokenizer(checkpoint, num_states=5)
+from src.experiments.emotion_steering import prepare_dataset
 
 samples, tokenizer = prepare_dataset()
 dataset = SLiMed_Dataset(samples)
 test_loader = DataLoader(dataset, batch_size=1, collate_fn=collate_fn)
 
 
-# Initialize film_values_by_state to store FiLM values by unique state
-film_values_by_state = defaultdict(
+# Initialize SLiM_values_by_state to store FiLM values by unique state
+SLiM_values_by_state = defaultdict(
     lambda: {
         "gamma": [[] for _ in model.apply_film_at_layers],
         "scale": [[] for _ in model.apply_film_at_layers],
@@ -44,22 +45,22 @@ hidden_states_by_state = defaultdict(
 # Capture FiLM parameters based on unique state inputs
 for batch in test_loader:
     input_ids, attention_mask, state_tensor = batch
-    model.reset_film_values()
+    model.reset_SLiM_values()
     model.reset_record_hidden_states()
     model(input_ids=input_ids, state_tensor=state_tensor, attention_mask=attention_mask)
-    film_values = model.film_values
+    SLiM_values = model.SLiM_values
     # Organize by unique state for each batch
     batch_size = state_tensor.size(0)  # Get batch size
     for i in range(batch_size):
         # Convert each one-hot encoded state to a tuple to use as a unique key
         state_key = tuple(state_tensor[i].cpu().numpy().astype(float))
         # Append each FiLM parameter for this specific layer and state
-        for key in film_values:
-            for layer_idx in range(len(film_values[key])):
+        for key in SLiM_values:
+            for layer_idx in range(len(SLiM_values[key])):
                 # Ensure we handle indexing correctly
-                if i < len(film_values[key][layer_idx]):
-                    film_values_by_state[state_key][key][layer_idx].append(
-                        film_values[key][layer_idx][i]
+                if i < len(SLiM_values[key][layer_idx]):
+                    SLiM_values_by_state[state_key][key][layer_idx].append(
+                        SLiM_values[key][layer_idx][i]
                     )
 
         # Save hidden states separately for each unique state in the first layer only
@@ -71,7 +72,7 @@ for batch in test_loader:
                 model.hidden_states["modulated"][layer_idx][i]
             )
 # Convert lists to numpy arrays for easier plotting
-for state_key, values in film_values_by_state.items():
+for state_key, values in SLiM_values_by_state.items():
     for key in values:
         for layer_idx in range(len(values[key])):
             # Concatenate to form arrays for each state and layer
@@ -86,7 +87,7 @@ scalers = {
 }
 
 # Plot histograms for each unique state
-for state_key, values in film_values_by_state.items():
+for state_key, values in SLiM_values_by_state.items():
     fig, axs = plt.subplots(
         len(model.apply_film_at_layers),
         2,
