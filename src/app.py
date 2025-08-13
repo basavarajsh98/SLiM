@@ -4,7 +4,7 @@ import torch
 from config.config import get_config
 from src.inference import generate_text, get_state_tensor, load_model_and_tokenizer
 
-# Load configuration and initialize the model and tokenizer
+# Load configuration
 config = get_config()
 
 CHECKPOINTS = {
@@ -26,26 +26,36 @@ NUM_STATES = {
 
 device = torch.device(config["device"])
 
-# Multi-state dropdown options (from old GUI.py)
+# Multi-state dropdown options
 language_options = ["En", "De"]
 sentiment_options = ["1", "2", "3", "4", "5"]
 topic_options = ["Book", "Electronics", "Clothing", "Beauty"]
+
+# ===== Preload all models at startup =====
+loaded_models = {}
+print("\n[Startup] Preloading models for all tasks...")
+for task_name, ckpt_path in CHECKPOINTS.items():
+    num_states = NUM_STATES[task_name]
+    print(f"[Startup] Loading model for task '{task_name}' from {ckpt_path}")
+    try:
+        model_instance, tokenizer_instance = load_model_and_tokenizer(
+            ckpt_path, num_states
+        )
+        model_instance.to(device)
+        loaded_models[task_name.lower()] = (model_instance, tokenizer_instance)
+    except Exception as e:
+        print(f"Error loading model for {task_name}: {e}")
+        loaded_models[task_name.lower()] = (None, None)
+print("[Startup] All models loaded successfully.\n")
 
 model = None
 tokenizer = None
 
 
-# Load model/tokenizer for a given task
+# Load model/tokenizer for a given task from cache
 def load_model_for_task(task):
-    task = task.lower()
-    checkpoint_path = CHECKPOINTS.get(task, None)
-    num_states = NUM_STATES.get(task, None)
-    if checkpoint_path:
-        model, tokenizer = load_model_and_tokenizer(checkpoint_path, num_states)
-        model.to(device)
-        return model, tokenizer
-    else:
-        return None, None
+    print(f"[Action] Loading model for task: {task}")
+    return loaded_models.get(task.lower(), (None, None))
 
 
 # Update state selection UI and state vector display based on task
@@ -53,7 +63,9 @@ def update_model_and_state_choices(task):
     global model, tokenizer
     model, tokenizer = load_model_for_task(task)
     if task.lower() == "multi_state":
-        # Use dropdowns for multi-state
+        print(
+            "[UI] Multi-State task selected — showing topic/language/sentiment dropdowns"
+        )
         return (
             gr.Dropdown(
                 choices=topic_options, label="Select Topic State", interactive=True
@@ -73,6 +85,7 @@ def update_model_and_state_choices(task):
             ),
         )
     elif "toxicity" in task.lower():
+        print("[UI] Toxicity task selected — showing float input for state")
         return (
             gr.Textbox(label="Enter Toxicity Level", interactive=True),
             None,
@@ -82,12 +95,13 @@ def update_model_and_state_choices(task):
             ),
         )
     else:
-        # For other tasks, use dropdown for state
+        print(f"[UI] {task} task selected — showing state dropdown")
         task_mapping = config.get(task.lower() + "_mapping", {})
-        if task_mapping:
-            choices = ["None"] + [item.capitalize() for item in task_mapping.keys()]
-        else:
-            choices = ["None"]
+        choices = (
+            ["None"] + [item.capitalize() for item in task_mapping.keys()]
+            if task_mapping
+            else ["None"]
+        )
         return (
             gr.Dropdown(
                 choices=choices, value="None", label="Select State", interactive=True
@@ -101,10 +115,12 @@ def update_model_and_state_choices(task):
 
 
 def get_state_vector_with_task(state, task, language=None, sentiment=None):
+    print(
+        f"[Action] Getting state vector for Task: {task}, State: {state}, Lang: {language}, Sent: {sentiment}"
+    )
     if task.lower() == "multi_state" and state and language and sentiment:
-        # Compose state key for multi-state
         state_key = f"{state.lower()}_{language.lower()}_{sentiment.lower()}"
-        state_tensor, state_vector = get_state_tensor(
+        _, state_vector = get_state_tensor(
             config.get("multi_state_mapping", {}), state_key, device
         )
         return str(state_vector)
@@ -117,6 +133,7 @@ def get_state_vector_with_task(state, task, language=None, sentiment=None):
         try:
             state_vector = [float(state)]
         except Exception:
+            print("[Error] Invalid float value for toxicity state")
             state_vector = "Invalid float value"
     else:
         state_vector = "No state selected"
@@ -136,6 +153,10 @@ def generate_texts_with_task(
     sentiment=None,
 ):
     global model, tokenizer
+    print(f"[Generate] Task: {task}, Prompt: '{prompt[:50]}...'")
+    print(
+        f"[Generate] Params — Num Gen: {num_generations}, Max Tokens: {max_new_tokens}, Temp: {temperature}, Top-k: {top_k}, Top-p: {top_p}"
+    )
     if task.lower() == "multi_state" and state and language and sentiment:
         state_key = f"{state.lower()}_{language.lower()}_{sentiment.lower()}"
         state_tensor, _ = get_state_tensor(
@@ -145,6 +166,7 @@ def generate_texts_with_task(
         try:
             state_tensor = torch.FloatTensor([float(state)]).unsqueeze(0).to(device)
         except ValueError:
+            print("[Error] Invalid float value entered for toxicity")
             return "Error: Please enter a valid float value for the state."
     elif state != "None":
         task_mapping = task.lower() + "_mapping"
@@ -164,6 +186,7 @@ def generate_texts_with_task(
         top_k=int(top_k),
         top_p=float(top_p),
     )
+    print("[Generate] Text generation completed.")
     return "\n\n".join(
         [f"Generation {i + 1}:\n{text}" for i, text in enumerate(generated_texts)]
     )
@@ -177,6 +200,7 @@ def toggle_advanced_options():
     global advanced_options_visible
     advanced_options_visible = not advanced_options_visible
     visibility = advanced_options_visible
+    print(f"[UI] Advanced options {'shown' if visibility else 'hidden'}")
     return {
         num_generations_slider: gr.update(visible=visibility),
         max_new_tokens_slider: gr.update(visible=visibility),
@@ -209,7 +233,6 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
                 label="Select Task",
                 interactive=True,
             )
-            # Placeholders for dynamic state selection
             state = gr.Dropdown(
                 choices=["None"], label="Select State", interactive=True
             )
@@ -248,12 +271,11 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
         with gr.Column():
             generated_texts_display = gr.Textbox(label="Text Completions", lines=10)
 
-    # Update task dropdown logic
     def on_task_change(task):
+        print(f"[UI] Task changed to: {task}")
         state_elem, lang_elem, sent_elem, state_vec_elem = (
             update_model_and_state_choices(task)
         )
-        # Show/hide language/sentiment dropdowns for multi_state
         if task.lower() == "multi_state":
             return {
                 state: gr.update(
@@ -286,8 +308,8 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
         outputs=[state, language_dropdown, sentiment_dropdown, state_vector_display],
     )
 
-    # Update state vector display
     def on_state_change(state_val, task_val, lang_val, sent_val):
+        print(f"[UI] State changed to: {state_val}, Task: {task_val}")
         return get_state_vector_with_task(state_val, task_val, lang_val, sent_val)
 
     state.change(
@@ -305,7 +327,7 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
         inputs=[state, steering_task, language_dropdown, sentiment_dropdown],
         outputs=state_vector_display,
     )
-    # Toggle advanced options
+
     advanced_options_button.click(
         fn=toggle_advanced_options,
         inputs=[],
@@ -319,7 +341,6 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
         ],
     )
 
-    # Generate button click
     def on_generate(
         prompt,
         task,
@@ -332,6 +353,7 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
         lang_val,
         sent_val,
     ):
+        print(f"[UI] Generate button clicked for Task: {task}")
         return generate_texts_with_task(
             prompt,
             task,
@@ -361,6 +383,6 @@ with gr.Blocks(theme=gr.themes.Ocean()) as app:
         ],
         outputs=generated_texts_display,
     )
-# Launch the app
+
 if __name__ == "__main__":
     app.launch()

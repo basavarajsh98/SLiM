@@ -91,37 +91,6 @@ def run_language_steering_evaluation(
     print("=" * 60 + "\n")
 
 
-def balance_dataset(texts, min_count=500):
-    """
-    Balance the dataset by downsampling to the minimum count across language categories.
-
-    Args:
-        texts: List of (text, label) tuples
-        min_count: Minimum count per language category
-
-    Returns:
-        list: Balanced list of (text, label) tuples
-    """
-    # Count the number of samples in each language category
-    counts = Counter([tuple(label) for _, label in texts])
-    print("min_count: ", min_count)
-    balanced_texts = []
-    language_buckets = {language: [] for language in counts.keys()}
-
-    # Organize samples by language
-    for text, label in texts:
-        language_buckets[tuple(label)].append((text, tuple(label)))
-
-    # Downsample to the minimum count in each category
-    for language, samples in language_buckets.items():
-        shuffle(samples)  # Shuffle to avoid any ordering bias
-        balanced_texts.extend(samples[:min_count])
-
-    balanced_texts = [(text, list(map(int, label))) for text, label in balanced_texts]
-    shuffle(balanced_texts)  # Shuffle again to mix languages in the final dataset
-    return balanced_texts
-
-
 def prepare_dataset(max_sequence_length=64, path="resources/datasets/languages.pth"):
     """
     Prepare dataset for language steering experiment.

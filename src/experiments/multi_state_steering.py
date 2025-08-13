@@ -161,48 +161,6 @@ def randomize_rating(rating):
         )  # Random value between 0 and 0.5 for ratings 1-2
 
 
-def balance_dataset(texts, min_samples_per_bin=10000):
-    """Balance dataset to ensure each topic-rating pair has at least `min_samples_per_bin` samples."""
-    # Group samples by (topic, rating) pairs
-    bins = {
-        topic: {rating: [] for rating in range(5)} for topic in TOPIC_TO_INDEX.values()
-    }
-    sample_counts = defaultdict(lambda: defaultdict(int))
-
-    # Organize samples into bins by topic and rating
-    for text, label in texts:
-        topic = label[0]
-        rating = label[1]
-        bins[topic][rating].append((text, label))
-
-    # Balance each topic-rating bin
-    balanced_texts = []
-    for topic, topic_bins in bins.items():
-        for rating, bin_samples in topic_bins.items():
-            if len(bin_samples) > min_samples_per_bin:
-                # Downsample if there are too many samples in the bin
-                shuffle(bin_samples)
-                bin_samples = bin_samples[:min_samples_per_bin]
-
-            # Convert ratings to continuous values after balancing
-            balanced_texts.extend(
-                [
-                    (text, [label[0], randomize_rating(rating)])
-                    for text, label in bin_samples
-                ]
-            )
-            sample_counts[topic][rating] = len(bin_samples)
-
-    # Display the count of samples per topic per rating
-    print("Sample counts per topic per rating:")
-    for topic, rating_counts in sample_counts.items():
-        for rating, count in rating_counts.items():
-            print(f"Topic {topic}, Rating {rating}: {count} samples")
-
-    shuffle(balanced_texts)  # Shuffle to mix bins in the final dataset
-    return balanced_texts
-
-
 def prepare_dataset(max_sequence_length, path="resources/datasets/multi_states.pth"):
     """Prepare the multi-state steering dataset with topic, language, and rating information."""
     tokenizer = AutoTokenizer.from_pretrained(config.get('base_model'))
@@ -251,10 +209,6 @@ def prepare_dataset(max_sequence_length, path="resources/datasets/multi_states.p
         print("Data preparation complete. Sample counts per topic:")
         for topic, count in combination_counts.items():
             print(f"{topic}: {count} samples")
-
-        # Balance the dataset
-        print("Balancing dataset...")
-        # texts = balance_dataset(texts, min_samples_per_bin=10000)
 
         # Tokenize balanced texts
         print("Tokenizing started...")
