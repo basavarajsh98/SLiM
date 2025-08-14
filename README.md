@@ -10,7 +10,6 @@ State-wise Linear Modulation (SLiM) is a novel, efficient, and generalizable app
 - **Efficient & Lightweight**: SLiM learns effective modulation parameters with minimal data and without extensive retraining, making it suitable for resource-constrained or rapid-prototyping scenarios.
 - **Generalizable**: Demonstrated strong performance across categorical, ordinal, and continuous state values, and across diverse datasets.
 - **Evaluation & Visualization**: Includes scripts for quantitative and qualitative evaluation (toxicity, perplexity, KL-divergence) and for visualizing SLiM parameters and model behavior.
-- **Interactive Gradio App**: Explore SLiM's capabilities interactively via a web UI.
 
 ## Installation
 1. **Clone the repository**
@@ -44,6 +43,12 @@ SLiM is designed to support a wide range of steering tasks, including:
 - **Multi-State Steering**: combinations of topic, language, and sentiment/rating
 
 ## Usage
+
+## 0. Proof-of-Concept (PoC) Notebooks
+The `src/poc/` directory contains Jupyter notebooks representing the first approaches we explored before developing the SLiM method. These preliminary implementations were conducted as proof of concept (PoC)—early, naive attempts to explore whether alternate formulations could be viable. These scripts were not followed by extensive experimentation or analysis like the SLiM method
+
+These PoC files are useful for understanding, testing, and visualizing core ideas before integrating them into the main codebase.
+
 ### 1. Training
 Train a SLiM-enhanced model using the main script. You can specify the experiment type in `config/config.yaml` or via code:
 ```bash
@@ -60,7 +65,7 @@ Generate text with a SLiM-trained checkpoint:
 python -m src.inference
 ```
 
-### 3. Gradio Web App
+### 3. Streamlit Web App
 Launch the interactive demo:
 ```bash
 python src/app.py
@@ -88,7 +93,7 @@ emotion_mapping:
 
 ## Requirements
 - Python 3.8+
-- See `requirements.txt` for all dependencies (transformers, torch, datasets, gradio, etc.)
+- See `requirements.txt` for all dependencies
 
 ## Citation
 If you use State-wise Linear Modulation (SLiM) in your research, please cite this repository.

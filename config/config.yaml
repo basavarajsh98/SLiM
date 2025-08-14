@@ -3,7 +3,7 @@ max_sequence_length: 64
 batch_size: 2
 accumulation_steps: 4
 learning_rate: 2e-5
-epochs: 1
+epochs: 25
 device: cuda
 max_steps: 0
 experiment_type: default  # Options: default, detoxification, emotion_steering, sentiment_steering, language_steering, topic_steering, multi_state_steering
