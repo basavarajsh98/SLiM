@@ -77,7 +77,7 @@ def run_emotion_steering_evaluation(
 
     # Baseline generation (no state)
     baseline_text = generate_text(
-        model, tokenizer, prompt_text, max_length=40, state_tensor=None
+        model, tokenizer, prompt_text, state_tensor=None
     )
     print(f"Baseline (no state): {baseline_text}")
     print("-" * 60)
@@ -90,7 +90,7 @@ def run_emotion_steering_evaluation(
         state_tensor = state_tensor.unsqueeze(0).to(device)
 
         generated_text = generate_text(
-            model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
+            model, tokenizer, prompt_text, state_tensor=state_tensor
         )
 
         print(f"State {i + 1} ({description}): {generated_text}")

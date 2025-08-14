@@ -1,7 +1,7 @@
 
 ## State-wise Linear Modulation (SLiM): A Novel Approach for Steering Large Language Models
 
-State-wise Linear Modulation (SLiM) is a novel, efficient, and generalizable approach for steering large language models. SLiM fine-tunes an LLM(GPT-2) by injecting state information through SLiM layers, enabling precise and context-aware control over generated text. This method allows the model to adapt to a wide range of steering tasks with minimal data and retraining.
+State-wise Linear Modulation (SLiM) is a novel, efficient, and generalizable approach for steering large language models. SLiM fine-tunes a language model (GPT-2) by injecting state information through SLiM layers, enabling precise and context-aware control over generated text. This method allows the model to adapt to a wide range of steering tasks with minimal data and retraining.
 
 ## Features
 
@@ -68,28 +68,18 @@ python -m src.inference
 ### 3. Streamlit Web App
 Launch the interactive demo:
 ```bash
-python src/app.py
+streamlit run src/app.py
 ```
 This provides a web UI to select tasks, states, and generate text interactively using SLiM.
 
 ### 4. Evaluation & Visualization
-- **Toxicity Evaluation**: `src/evaluation/detoxification.py` (SLiM-based)
-- **SLiM Parameter Visualization**: `src/visualizations/SLiM.py`
-- **Perplexity & KL-Divergence Plots**: `src/visualizations/plots.py`
+
+**Evaluation**: All scripts and modules for evaluating SLiM models and steering tasks are located in `src/evaluation`. This includes quantitative and qualitative assessments.
+
+**Visualization**: Tools and scripts for visualizing SLiM parameters, model behavior, and experiment results are found in `src/visualizations`.
 
 ## Configuration
 Edit `config/config.yaml` to adjust model, training, and state mappings for SLiM. Example:
-```yaml
-model_name: openai-community/gpt2
-num_states: 5
-# ...
-emotion_mapping:
-  anger: [1, 0, 0, 0, 0]
-  fear: [0, 1, 0, 0, 0]
-  joy: [0, 0, 1, 0, 0]
-  love: [0, 0, 0, 1, 0]
-  sadness: [0, 0, 0, 0, 1]
-```
 
 ## Requirements
 - Python 3.8+

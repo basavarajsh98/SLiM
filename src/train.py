@@ -1,3 +1,5 @@
+import os
+import sys
 import time
 import warnings
 
@@ -10,7 +12,7 @@ from transformers import (
     AutoModelForCausalLM,
     get_linear_schedule_with_warmup,
 )
-
+from colorama import Fore, Style
 from config.config import get_config
 from src.dataset import SLiMed_Dataset, collate_fn
 from src.inference import generate_text
@@ -18,6 +20,7 @@ from src.model import SLiMedNet
 from src.utils import print_trainable_parameters, save_model
 
 warnings.filterwarnings("ignore")
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # or "true"
 
 config = get_config()
 
@@ -264,9 +267,7 @@ def run_evaluation(
     print("=" * 50)
 
     # Baseline generation
-    baseline_text = generate_text(
-        model, tokenizer, prompt_text, max_length=40, state_tensor=None
-    )
+    baseline_text = generate_text(model, tokenizer, prompt_text, state_tensor=None)
     print(f"Baseline: {baseline_text}")
 
     if state_samples is None:
@@ -301,7 +302,7 @@ def run_evaluation(
             )
 
             state_samples = get_multi_state_state_samples()
-            
+
     # Generate text for each state
     for i, state in enumerate(state_samples):
         if isinstance(state, (int, float)):
@@ -314,7 +315,7 @@ def run_evaluation(
             state_label = f"State {i + 1}"
 
         generated_text = generate_text(
-            model, tokenizer, prompt_text, max_length=40, state_tensor=state_tensor
+            model, tokenizer, prompt_text, state_tensor=state_tensor
         )
 
         print(f"{state_label}: {generated_text}")
@@ -421,12 +422,12 @@ def main(experiment_type="default", custom_config=None):
         print("\nPreparing model...")
 
         base_model = AutoModelForCausalLM.from_pretrained(
-            config.get("model_name", "openai-community/gpt2")
+            config.get("model_name", "gpt2")
         )
         for param in base_model.parameters():
             param.requires_grad = False
         base_model = prepare_model_for_kbit_training(base_model)
-        print(config)
+
         model = SLiMedNet(
             state_embed_dim=config.get("num_states"), model=base_model
         ).to(device)
@@ -467,6 +468,66 @@ def main(experiment_type="default", custom_config=None):
 
 
 if __name__ == "__main__":
-    # You can specify experiment type here or modify the config
-    experiment_type = config.get("experiment_type", "default")
+    # List available experiments dynamically
+    experiments = {
+        "Setting Emotional Tone": {
+            "name": "emotion_steering",
+            "checkpoint": "resources/checkpoints/emotion_steering/emotions.pth",
+            "state_mapping": "emotion_mapping",
+        },
+        "Sentiment Steering": {
+            "name": "sentiment_steering",
+            "checkpoint": "resources/checkpoints/sentiment_steering/sentiments.pth",
+            "state_mapping": "sentiment_mapping",
+        },
+        "Language Toggling": {
+            "name": "language_steering",
+            "checkpoint": "resources/checkpoints/language_steering/languages.pth",
+            "state_mapping": "language_mapping",
+        },
+        "Discussing Topic": {
+            "name": "topic_steering",
+            "checkpoint": "resources/checkpoints/topic_steering/languages.pth",
+            "state_mapping": "topic_mapping",
+        },
+        "Detoxify": {
+            "name": "detoxification",
+            "checkpoint": "resources/checkpoints/sentiment_steering/sentiments.pth",
+            "state_mapping": "toxicity_mapping",
+        },
+        "Multi_State Maneuvering": {
+            "name": "multi_state_steering",
+            "checkpoint": "resources/checkpoints/multi_state_steering/multi_states.pth",
+            "state_mapping": "multi_state_mapping",
+        },
+    }
+
+    # Add num_states dynamically
+    for exp in experiments:
+        mapping_key = experiments[exp]["state_mapping"]
+        mapping = config.get(mapping_key, {})
+        if isinstance(mapping, dict) and mapping:
+            experiments[exp]["num_states"] = len(next(iter(mapping.values())))
+        else:
+            experiments[exp]["num_states"] = config.get("num_states", 5)
+
+    # Interactive selection of experiment_type
+    print(Fore.YELLOW + "=" * 50)
+    print(Fore.YELLOW + Style.BRIGHT + "      SLiMedNet Interactive Inference")
+    print(Fore.YELLOW + "=" * 50)
+    print("\nAvailable experiments:")
+    for i, exp in enumerate(experiments, 1):
+        print(Fore.CYAN + f"  {i}. {exp}")
+
+    choice = input(
+        Fore.MAGENTA + "\nSelect experiment by number: " + Fore.WHITE
+    ).strip()
+    try:
+        selected_key = list(experiments.keys())[int(choice) - 1]
+        experiment_type = experiments[selected_key][
+            "name"
+        ]  # use 'name' instead of display key
+    except Exception:
+        print(Fore.RED + "❌ Invalid choice. Exiting.")
+        sys.exit(1)
     main(experiment_type)
