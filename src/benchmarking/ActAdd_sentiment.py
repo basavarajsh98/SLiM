@@ -22,7 +22,7 @@ from config.config import get_config
 config = get_config()
 
 # params and directories
-save_dir = "/home/raj/activation_additions"  # change or create such dir
+save_dir = os.getenv("SAVE_DIR")
 prompts_setting = "gpt2_sentiment"
 display = True
 method = "negative"

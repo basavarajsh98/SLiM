@@ -15,10 +15,10 @@ from config.config import get_config
 from src.model import SLiMedNet
 
 config = get_config()
-checkpoint = "./resources/checkpoints/sentiment_best.pth"
+checkpoint = os.getenv("CHECKPOINT")
 
 # params and directories
-save_dir = "/home/raj/thesis/SLiM/SLiM/resources/evaluation_results"
+save_dir = os.getenv("SAVE_DIR")
 prompts_setting = "sentiment"
 display = True
 
