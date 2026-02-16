@@ -1,16 +1,29 @@
 import torch
-import yaml
 import os
+from config.config import get_config
 
-def save_model(model, tokenizer, epoch, loss, perplexity, path):
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'tokenizer': tokenizer,
-        'loss': loss,
-        'perplexity': perplexity,
-    }, f"{path}_{epoch}.pth")
-    print(f"Model saved to {path}_{epoch}.pth.")
+config = get_config()
+
+
+def save_model(model, tokenizer, epoch, loss, perplexity, path, final=False):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    if final:
+        save_path = f"{path}.pth"
+    else:
+        save_path = f"{path}_{epoch}.pth"
+
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "tokenizer": tokenizer,
+            "loss": loss,
+            "perplexity": perplexity,
+        },
+        save_path,
+    )
+    print(f"Model saved to {save_path}.")
 
 
 def print_trainable_parameters(model):
@@ -20,4 +33,6 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(f"\nTotal trainable params: {trainable_params} || All params: {all_param} || Trainable %: {100 * trainable_params / all_param:.2f}%")
+    print(
+        f"\nTotal trainable params: {trainable_params} || All params: {all_param} || Trainable %: {100 * trainable_params / all_param:.2f}%"
+    )

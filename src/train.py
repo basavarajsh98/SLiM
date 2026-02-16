@@ -1,122 +1,533 @@
-import torch
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.amp import autocast, GradScaler
-from src.dataset import prepare_dataset, collate_fn, CustomDataset
-from src.model import SLiMedNet
-from src.utils import save_model, print_trainable_parameters
-from config.config import get_config
-from transformers import AutoModelForCausalLM
-from src.inference import generate_text
-from peft import prepare_model_for_kbit_training
+import os
+import sys
+import time
 import warnings
+
+import torch
+import torch.amp as amp
+import torch.optim as optim
+from peft import prepare_model_for_kbit_training
+from torch.utils.data import DataLoader
+from transformers import (
+    AutoModelForCausalLM,
+    get_linear_schedule_with_warmup,
+)
+from colorama import Fore, Style
+from config.config import get_config
+from src.dataset import SLiMed_Dataset, collate_fn
+from src.inference import generate_text
+from src.model import SLiMedNet
+from src.utils import print_trainable_parameters, save_model
+
 warnings.filterwarnings("ignore")
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # or "true"
 
 config = get_config()
 
-def train(model, 
-          dataloader, 
-          criterion, 
-          optimizer, 
-          accumulation_steps=4, 
-          epochs=2, 
-          max_steps=None, 
-          save_model_path="results/SLiM_gpt"):
-          
+
+def train_model(
+    model,
+    dataloader,
+    criterion,
+    optimizer,
+    scheduler=None,
+    scaler=None,
+    device=None,
+    accumulation_steps=4,
+    epochs=3,
+    max_steps=None,
+    save_model_path=None,
+    experiment_type=None,
+    tokenizer=None,
+    prompt_text="i feel",
+    state_samples=None,
+    eval_frequency=50,
+    verbose=True,
+):
+    """
+    Dynamic training function that can handle different experiment types and configurations.
+
+    Args:
+        model: The model to train
+        dataloader: DataLoader for training data
+        criterion: Loss function
+        optimizer: Optimizer
+        scheduler: Learning rate scheduler (optional)
+        scaler: Gradient scaler for mixed precision training
+        device: Device to train on
+        accumulation_steps: Gradient accumulation steps
+        epochs: Number of training epochs
+        max_steps: Maximum training steps (optional)
+        save_model_path: Path to save model checkpoints
+        experiment_type: Type of experiment (default, detoxification, emotion_steering, etc.)
+        tokenizer: Tokenizer for text generation during evaluation
+        prompt_text: Text prompt for evaluation generation
+        state_samples: List of state tensors to test during evaluation
+        eval_frequency: How often to run evaluation (in steps)
+        verbose: Whether to print training progress
+    """
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if scaler is None:
+        scaler = amp.GradScaler()
+
     model.train()
     step = 0
+    total_loss = 0
+
     for epoch in range(epochs):
         running_loss = 0
         optimizer.zero_grad()
 
+        if verbose:
+            print(f"\nEpoch {epoch + 1}/{epochs}")
+
         for i, (input_seq, target_seq, state) in enumerate(dataloader):
-            input_seq, target_seq, state = input_seq.to(device), target_seq.to(device), state.to(device)
-            
-            with autocast(config['device']):
+            input_seq, target_seq, state = (
+                input_seq.to(device),
+                target_seq.to(device),
+                state.to(device),
+            )
+
+            with amp.autocast(device):
                 logits = model(input_seq, state)
                 loss = criterion(logits.view(-1, logits.size(-1)), target_seq.view(-1))
-            
+
             scaler.scale(loss).backward()
 
             if (i + 1) % accumulation_steps == 0:
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
-                scheduler.step()  # Step the scheduler after each optimizer step
+
+                if scheduler is not None:
+                    scheduler.step()
+
                 step += 1
-                print(f"Step {step} loss: {(loss.item()):.3f}")
-                if step % 1000 == 0 or step == max_steps:
-                    model.eval()
-                    print("Baseline: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=None), '\n')
-                    print("=============")                    
-                    print("Angry German: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([0,1]).unsqueeze(0).to(device)).strip(), '\n')
-                    print("=============")
-                    print("Angry British: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([0,0]).unsqueeze(0).to(device)).strip(), '\n')
-                    print("=============")
-                    print("Scared German: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([1,1]).unsqueeze(0).to(device)).strip(), '\n')
-                    print("=============")
-                    print("Scared British: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([1,0]).unsqueeze(0).to(device)).strip(), '\n')
-                    print("=============")
-                    print("Loving German: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([3,1]).unsqueeze(0).to(device)).strip(), '\n')
-                    print("=============")
-                    print("Loving British: ", generate_text(model, tokenizer, "i feel", max_length=40, state_tensor=torch.FloatTensor([3,0]).unsqueeze(0).to(device)).strip(), '\n')
-                    print("=============\n")
-                    model.train()
+                total_loss += loss.item()
+
+                if verbose and (step % eval_frequency == 0 or step == max_steps):
+                    avg_loss = total_loss / step
+                    print(
+                        f"Step {step} - Avg Loss: {avg_loss:.3f} - Current Loss: {loss.item():.3f}"
+                    )
+
+                    # Run evaluation if tokenizer is provided
+                    if tokenizer is not None:
+                        run_evaluation(
+                            model,
+                            tokenizer,
+                            device,
+                            prompt_text,
+                            state_samples,
+                            experiment_type,
+                            verbose,
+                        )
+
+                # Check if max steps reached
+                if max_steps and step >= max_steps:
+                    if verbose:
+                        print(f"Reached max steps: {max_steps}. Stopping training.")
+                        final_loss = total_loss / step
+                        final_ppx = torch.exp(torch.tensor(final_loss)).item()
+                        print(
+                            f"Final - Loss: {final_loss:.3f} Perplexity: {final_ppx:.3f}"
+                        )
+
+                    save_model(
+                        model,
+                        tokenizer,
+                        max_steps,
+                        final_loss,
+                        final_ppx,
+                        save_model_path,
+                        final=step == max_steps or epoch == epochs - 1,
+                    )
+                    return
+
             running_loss += loss.item()
-            if max_steps and step >= max_steps:
-                print(f"Reached max steps: {max_steps}. Stopping training.")
-                step_loss = running_loss / (max_steps)
-                step_ppx = torch.exp(torch.tensor(step_loss)).item()
-                print(f"Step {max_steps} loss: {step_loss:.3f} perplexity: {step_ppx:.3f}")
-                save_model(model, tokenizer, max_steps, step_loss, step_ppx, save_model_path)
-                return
 
+        # End of epoch
         epoch_loss = running_loss / len(dataloader)
-        epoh_ppx = torch.exp(torch.Tensor([epoch_loss])).item()
-        print(f"Epoch {epoch+1} loss: {epoch_loss:.3f} perplexity: {epoh_ppx:.3f}")
-        if epoch == epochs-1:
-            save_model(model, tokenizer, epoch, epoch_loss, epoh_ppx, save_model_path) 
+        epoch_ppx = torch.exp(torch.Tensor([epoch_loss])).item()
 
-if __name__ == "__main__":
+        if verbose:
+            print(
+                f"Epoch {epoch + 1} - Loss: {epoch_loss:.3f} - Perplexity: {epoch_ppx:.3f}"
+            )
 
-    print("Preparing dataset..")
-    samples, tokenizer = prepare_dataset()
-    dataset = CustomDataset(samples)
-    dataloader = DataLoader(dataset, batch_size=config['batch_size'], collate_fn=collate_fn)
+        # Save model at end of epoch
+        save_model(
+            model,
+            tokenizer,
+            epoch,
+            epoch_loss,
+            epoch_ppx,
+            save_model_path,
+            final=step == max_steps or epoch == epochs - 1,
+        )
 
-    device = torch.device(config['device'])
+        # Run evaluation at end of epoch if tokenizer provided
+        if tokenizer is not None:
+            run_evaluation(
+                model,
+                tokenizer,
+                device,
+                prompt_text,
+                state_samples,
+                experiment_type,
+                verbose,
+            )
 
-    print("\nPreparing model...")
-    model = AutoModelForCausalLM.from_pretrained(config['model_name'])
-    for param in model.parameters():
-        param.requires_grad = False
-    model = prepare_model_for_kbit_training(model)
 
-    print("\nSLiMing model...")
-    model = SLiMedNet(config=config, model=model).to(device)
+def run_evaluation(
+    model, tokenizer, device, prompt_text, state_samples, experiment_type, verbose=True
+):
+    """Run evaluation with different state configurations based on experiment type."""
+    if not verbose:
+        return
 
-    optimizer = optim.Adam(model.parameters(), lr=float(config['learning_rate']))
-    criterion = torch.nn.CrossEntropyLoss()
-    scaler = GradScaler()
-    total_steps = len(dataloader) // config["accumulation_steps"] * config["epochs"]
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, 
-        num_warmup_steps=warmup_steps, 
-        num_training_steps=total_steps
+    # Try to use specialized evaluation if available
+    if experiment_type == "detoxification":
+        try:
+            from src.experiments.detoxification import run_detoxification_evaluation
+
+            run_detoxification_evaluation(
+                model, tokenizer, device, prompt_text, verbose
+            )
+            return
+        except ImportError:
+            # Fall back to default evaluation if specialized function not available
+            pass
+    elif experiment_type == "emotion_steering":
+        try:
+            from src.experiments.emotion_steering import run_emotion_steering_evaluation
+
+            run_emotion_steering_evaluation(
+                model, tokenizer, device, prompt_text, verbose
+            )
+            return
+        except ImportError:
+            # Fall back to default evaluation if specialized function not available
+            pass
+    elif experiment_type == "language_steering":
+        try:
+            from src.experiments.language_steering import (
+                run_language_steering_evaluation,
+            )
+
+            run_language_steering_evaluation(
+                model, tokenizer, device, prompt_text, verbose
+            )
+            return
+        except ImportError:
+            # Fall back to default evaluation if specialized function not available
+            pass
+    elif experiment_type == "topic_steering":
+        try:
+            from src.experiments.topic_steering import run_topic_steering_evaluation
+
+            run_topic_steering_evaluation(
+                model, tokenizer, device, prompt_text, verbose
+            )
+            return
+        except ImportError:
+            # Fall back to default evaluation if specialized function not available
+            pass
+    elif experiment_type == "multi_state_steering":
+        try:
+            from src.experiments.multi_state_steering import (
+                run_multi_state_steering_evaluation,
+            )
+
+            run_multi_state_steering_evaluation(
+                model, tokenizer, device, prompt_text, verbose
+            )
+            return
+        except ImportError:
+            # Fall back to default evaluation if specialized function not available
+            pass
+    elif experiment_type == "sentiment_steering":
+        try:
+            from src.experiments.sentiment_steering import (
+                run_sentiment_steering_evaluation,
+            )
+
+            run_sentiment_steering_evaluation(
+                model, tokenizer, device, prompt_text, verbose
+            )
+            return
+        except ImportError:
+            # Fall back to default evaluation if specialized function not available
+            pass
+
+    print("\n" + "=" * 50)
+    print("EVALUATION RESULTS")
+    print("=" * 50)
+
+    # Baseline generation
+    baseline_text = generate_text(model, tokenizer, prompt_text, state_tensor=None)
+    print(f"Baseline: {baseline_text}")
+
+    if state_samples is None:
+        # Try to get specialized state samples if available
+        if experiment_type == "detoxification":
+            from src.experiments.detoxification import (
+                get_detoxification_state_samples,
+            )
+
+            state_samples = get_detoxification_state_samples()
+        elif experiment_type == "emotion_steering":
+            from src.experiments.emotion_steering import get_emotion_state_samples
+
+            state_samples = get_emotion_state_samples()
+        elif experiment_type == "language_steering":
+            from src.experiments.language_steering import get_language_state_samples
+
+            state_samples = get_language_state_samples()
+        elif experiment_type == "topic_steering":
+            from src.experiments.topic_steering import get_topic_state_samples
+
+            state_samples = get_topic_state_samples()
+        elif experiment_type == "sentiment_steering":
+            from src.experiments.sentiment_steering import (
+                get_sentiment_state_samples,
+            )
+
+            state_samples = get_sentiment_state_samples()
+        elif experiment_type == "multi_state_steering":
+            from src.experiments.multi_state_steering import (
+                get_multi_state_state_samples,
+            )
+
+            state_samples = get_multi_state_state_samples()
+
+    # Generate text for each state
+    for i, state in enumerate(state_samples):
+        if isinstance(state, (int, float)):
+            # For detoxification (single float values)
+            state_tensor = torch.FloatTensor([state]).unsqueeze(0).to(device)
+            state_label = f"{state}"
+        else:
+            # For multi-state experiments
+            state_tensor = state.to(device)
+            state_label = f"State {i + 1}"
+
+        generated_text = generate_text(
+            model, tokenizer, prompt_text, state_tensor=state_tensor
+        )
+
+        print(f"{state_label}: {generated_text}")
+
+    print("=" * 50 + "\n")
+
+
+def setup_training_components(config, model):
+    """Setup training components based on configuration and experiment type."""
+    device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+
+    optimizer = optim.Adam(
+        model.parameters(), lr=float(config.get("learning_rate", 2e-5))
     )
 
-    print("\nBegin training...\n")
-    start = time.time()
-    train(model, 
-          dataloader=dataloader, 
-          criterion=criterion, 
-          optimizer=optimizer, 
-          scaler=scaler,
-          accumulation_steps=config["accumulation_steps"], 
-          epochs=config["epochs"],
-          max_steps=config["max_steps"],
-          save_model_path=config["save_model_path"]
-          )
-    print(f"\nTraining completed in {(time.time() - start)/60} min.")
-    print_trainable_parameters(model)
+    # Setup scheduler for detoxification
+    scheduler = None
+    total_steps = (config.get("epochs") * config.get("batch_size")) // config.get(
+        "accumulation_steps", 4
+    )
+    warmup_steps = int(0.1 * total_steps)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
+    )
+
+    # Setup criterion and scaler
+    criterion = torch.nn.CrossEntropyLoss()
+    scaler = amp.GradScaler()
+
+    return device, optimizer, scheduler, criterion, scaler
+
+
+def main(experiment_type="default", custom_config=None):
+    """Main training function with experiment type selection."""
+    # Use custom config if provided, otherwise use default
+
+    # List of all experiment types
+    all_experiments = [
+        "detoxification",
+        "emotion_steering",
+        "sentiment_steering",
+        "topic_steering",
+        "language_steering",
+        "multi_state_steering",
+    ]
+
+    # Decide which experiments to run
+    experiments_to_run = (
+        all_experiments if experiment_type == "default" else [experiment_type]
+    )
+
+    for exp_type in experiments_to_run:
+        print("\n" + "=" * 60)
+        print(f"🚀 Starting Experiment: {exp_type.upper()}")
+        print("=" * 60 + "\n")
+        print("Preparing dataset...")
+
+        if exp_type == "detoxification":
+            from src.experiments.detoxification import DEFAULT_CONFIG, prepare_dataset
+        elif exp_type == "emotion_steering":
+            from src.experiments.emotion_steering import DEFAULT_CONFIG, prepare_dataset
+        elif exp_type == "sentiment_steering":
+            from src.experiments.sentiment_steering import (
+                DEFAULT_CONFIG,
+                prepare_dataset,
+            )
+        elif exp_type == "topic_steering":
+            from src.experiments.topic_steering import DEFAULT_CONFIG, prepare_dataset
+        elif exp_type == "language_steering":
+            from src.experiments.language_steering import (
+                DEFAULT_CONFIG,
+                prepare_dataset,
+            )
+        elif exp_type == "multi_state_steering":
+            from src.experiments.multi_state_steering import (
+                DEFAULT_CONFIG,
+                prepare_dataset,
+            )
+        else:
+            print(f"Skipping unsupported experiment type: {exp_type}")
+            continue
+
+        if custom_config:
+            config.update(custom_config)
+        else:
+            config.update(DEFAULT_CONFIG)
+
+        samples, tokenizer = prepare_dataset(
+            max_sequence_length=config.get("max_sequence_length", 64)
+        )
+
+        dataset = SLiMed_Dataset(samples)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=config.get("batch_size", 2),
+            collate_fn=collate_fn,
+            shuffle=True,
+            num_workers=4,
+            pin_memory=True,
+        )
+
+        device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+
+        print("\nPreparing model...")
+
+        base_model = AutoModelForCausalLM.from_pretrained(
+            config.get("model_name", "gpt2")
+        )
+        for param in base_model.parameters():
+            param.requires_grad = False
+        base_model = prepare_model_for_kbit_training(base_model)
+
+        model = SLiMedNet(
+            state_embed_dim=config.get("num_states"), model=base_model
+        ).to(device)
+
+        print_trainable_parameters(model)
+
+        # Setup training components
+        device, optimizer, scheduler, criterion, scaler = setup_training_components(
+            config, model
+        )
+
+        print("\nBegin training...\n")
+        start_time = time.time()
+
+        # Run training
+        train_model(
+            model=model,
+            dataloader=dataloader,
+            criterion=criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
+            device=device,
+            accumulation_steps=config.get("accumulation_steps", 4),
+            epochs=config.get("epochs", 3),
+            max_steps=config.get("max_steps"),
+            save_model_path=config.get("save_model_path"),
+            experiment_type=exp_type,
+            tokenizer=tokenizer,
+            prompt_text=config.get("prompt_text", "i feel"),
+            eval_frequency=config.get("eval_frequency", 50),
+            verbose=True,
+        )
+
+        training_time = (time.time() - start_time) / 60
+        print(f"\nTraining completed in {training_time:.2f} minutes!")
+        print_trainable_parameters(model)
+
+
+if __name__ == "__main__":
+    # List available experiments dynamically
+    experiments = {
+        "Setting Emotional Tone": {
+            "name": "emotion_steering",
+            "checkpoint": "resources/checkpoints/emotion_steering/emotions.pth",
+            "state_mapping": "emotion_mapping",
+        },
+        "Sentiment Steering": {
+            "name": "sentiment_steering",
+            "checkpoint": "resources/checkpoints/sentiment_steering/sentiments.pth",
+            "state_mapping": "sentiment_mapping",
+        },
+        "Language Toggling": {
+            "name": "language_steering",
+            "checkpoint": "resources/checkpoints/language_steering/languages.pth",
+            "state_mapping": "language_mapping",
+        },
+        "Discussing Topic": {
+            "name": "topic_steering",
+            "checkpoint": "resources/checkpoints/topic_steering/languages.pth",
+            "state_mapping": "topic_mapping",
+        },
+        "Detoxify": {
+            "name": "detoxification",
+            "checkpoint": "resources/checkpoints/sentiment_steering/sentiments.pth",
+            "state_mapping": "toxicity_mapping",
+        },
+        "Multi_State Maneuvering": {
+            "name": "multi_state_steering",
+            "checkpoint": "resources/checkpoints/multi_state_steering/multi_states.pth",
+            "state_mapping": "multi_state_mapping",
+        },
+    }
+
+    # Add num_states dynamically
+    for exp in experiments:
+        mapping_key = experiments[exp]["state_mapping"]
+        mapping = config.get(mapping_key, {})
+        if isinstance(mapping, dict) and mapping:
+            experiments[exp]["num_states"] = len(next(iter(mapping.values())))
+        else:
+            experiments[exp]["num_states"] = config.get("num_states", 5)
+
+    # Interactive selection of experiment_type
+    print(Fore.YELLOW + "=" * 50)
+    print(Fore.YELLOW + Style.BRIGHT + "      SLiMedNet Interactive Inference")
+    print(Fore.YELLOW + "=" * 50)
+    print("\nAvailable experiments:")
+    for i, exp in enumerate(experiments, 1):
+        print(Fore.CYAN + f"  {i}. {exp}")
+
+    choice = input(
+        Fore.MAGENTA + "\nSelect experiment by number: " + Fore.WHITE
+    ).strip()
+    try:
+        selected_key = list(experiments.keys())[int(choice) - 1]
+        experiment_type = experiments[selected_key][
+            "name"
+        ]  # use 'name' instead of display key
+    except Exception:
+        print(Fore.RED + "❌ Invalid choice. Exiting.")
+        sys.exit(1)
+    main(experiment_type)
